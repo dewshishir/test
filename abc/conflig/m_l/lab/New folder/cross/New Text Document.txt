@@ -1,0 +1,751 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, KFold, StratifiedKFold, cross_val_score
+from sklearn.model_selection import GridSearchCV, learning_curve, validation_curve
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import confusion_matrix, classification_report, roc_curve, auc
+from sklearn.metrics import roc_auc_score, precision_recall_curve
+from sklearn.preprocessing import StandardScaler, label_binarize
+from sklearn.datasets import load_iris, load_breast_cancer, make_classification
+import warnings
+warnings.filterwarnings('ignore')
+
+print("="*70)
+print("MODEL EVALUATION AND CROSS-VALIDATION")
+print("="*70)
+1. Train-Test Split Evaluation
+python
+print("\n" + "="*70)
+print("1. TRAIN-TEST SPLIT EVALUATION")
+print("="*70)
+
+# Load dataset (Breast Cancer for binary classification)
+cancer = load_breast_cancer()
+X = cancer.data
+y = cancer.target
+feature_names = cancer.feature_names
+target_names = cancer.target_names
+
+print(f"Dataset: Breast Cancer")
+print(f"Features: {X.shape[1]}")
+print(f"Samples: {X.shape[0]}")
+print(f"Classes: {target_names[0]} (0), {target_names[1]} (1)")
+print(f"Class distribution: {np.bincount(y)}")
+
+# Split the data
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
+)
+
+# Scale the features
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+print(f"\nTraining set size: {X_train.shape[0]} samples")
+print(f"Test set size: {X_test.shape[0]} samples")
+
+# Train multiple models
+models = {
+    'Logistic Regression': LogisticRegression(max_iter=1000, random_state=42),
+    'Decision Tree': DecisionTreeClassifier(random_state=42),
+    'SVM': SVC(kernel='rbf', probability=True, random_state=42),
+    'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42)
+}
+
+results = []
+
+for name, model in models.items():
+    # Train model
+    model.fit(X_train_scaled, y_train)
+    
+    # Make predictions
+    y_pred = model.predict(X_test_scaled)
+    y_pred_proba = model.predict_proba(X_test_scaled)[:, 1] if hasattr(model, 'predict_proba') else None
+    
+    # Calculate metrics
+    accuracy = accuracy_score(y_test, y_pred)
+    precision = precision_score(y_test, y_pred)
+    recall = recall_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred)
+    
+    results.append({
+        'Model': name,
+        'Accuracy': accuracy,
+        'Precision': precision,
+        'Recall': recall,
+        'F1-Score': f1
+    })
+    
+    print(f"\n{'-'*50}")
+    print(f"{name}:")
+    print(f"  Accuracy:  {accuracy:.4f}")
+    print(f"  Precision: {precision:.4f}")
+    print(f"  Recall:    {recall:.4f}")
+    print(f"  F1-Score:  {f1:.4f}")
+    
+    # Confusion Matrix
+    cm = confusion_matrix(y_test, y_pred)
+    print(f"\nConfusion Matrix:")
+    print(f"              Predicted")
+    print(f"              Neg   Pos")
+    print(f"Actual Neg    {cm[0,0]:4d}  {cm[0,1]:4d}")
+    print(f"       Pos    {cm[1,0]:4d}  {cm[1,1]:4d}")
+
+# Create results DataFrame
+results_df = pd.DataFrame(results)
+print("\n" + "="*50)
+print("SUMMARY - Train-Test Split Evaluation")
+print("="*50)
+print(results_df.round(4).to_string(index=False))
+
+# Visualize results
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# Bar plot comparison
+ax1 = axes[0, 0]
+results_df.plot(x='Model', y=['Accuracy', 'Precision', 'Recall', 'F1-Score'], 
+                kind='bar', ax=ax1, rot=45)
+ax1.set_title('Model Performance Comparison')
+ax1.set_ylabel('Score')
+ax1.set_ylim(0, 1)
+ax1.grid(True, alpha=0.3)
+ax1.legend(loc='lower right')
+
+# Heatmap of metrics
+ax2 = axes[0, 1]
+metrics_matrix = results_df[['Accuracy', 'Precision', 'Recall', 'F1-Score']].values
+im = ax2.imshow(metrics_matrix, cmap='YlOrRd', aspect='auto')
+ax2.set_xticks(range(4))
+ax2.set_yticks(range(len(results_df)))
+ax2.set_xticklabels(['Accuracy', 'Precision', 'Recall', 'F1-Score'])
+ax2.set_yticklabels(results_df['Model'])
+ax2.set_title('Performance Heatmap')
+plt.colorbar(im, ax=ax2)
+
+# Add text annotations
+for i in range(len(results_df)):
+    for j in range(4):
+        text = ax2.text(j, i, f'{metrics_matrix[i, j]:.3f}',
+                       ha="center", va="center", color="black", fontweight='bold')
+
+# Confusion matrix for best model
+ax3 = axes[1, 0]
+best_model_idx = results_df['F1-Score'].argmax()
+best_model_name = results_df.iloc[best_model_idx]['Model']
+best_model = models[best_model_name]
+best_model.fit(X_train_scaled, y_train)
+y_pred_best = best_model.predict(X_test_scaled)
+cm_best = confusion_matrix(y_test, y_pred_best)
+
+sns.heatmap(cm_best, annot=True, fmt='d', cmap='Blues', ax=ax3,
+            xticklabels=['Negative', 'Positive'],
+            yticklabels=['Negative', 'Positive'])
+ax3.set_title(f'Confusion Matrix - {best_model_name}')
+ax3.set_ylabel('Actual')
+ax3.set_xlabel('Predicted')
+
+# Classification report for best model
+ax4 = axes[1, 1]
+ax4.axis('off')
+report = classification_report(y_test, y_pred_best, 
+                              target_names=target_names, output_dict=True)
+report_df = pd.DataFrame(report).transpose()
+ax4.table(cellText=report_df.round(4).values,
+          rowLabels=report_df.index,
+          colLabels=report_df.columns,
+          cellLoc='center',
+          loc='center',
+          bbox=[0, 0, 1, 1])
+ax4.set_title(f'Classification Report - {best_model_name}')
+
+plt.tight_layout()
+plt.show()
+2. K-Fold Cross-Validation
+python
+print("\n" + "="*70)
+print("2. K-FOLD CROSS-VALIDATION")
+print("="*70)
+
+# Define number of folds
+n_folds = 5
+kf = KFold(n_splits=n_folds, shuffle=True, random_state=42)
+
+print(f"K-Fold Cross-Validation with {n_folds} folds")
+print("="*50)
+
+# Perform K-Fold CV for each model
+cv_results = {}
+
+for name, model in models.items():
+    # Perform cross-validation
+    cv_scores = cross_val_score(model, X_train_scaled, y_train, cv=kf, scoring='accuracy')
+    
+    cv_results[name] = {
+        'scores': cv_scores,
+        'mean': cv_scores.mean(),
+        'std': cv_scores.std(),
+        'min': cv_scores.min(),
+        'max': cv_scores.max()
+    }
+    
+    print(f"\n{name}:")
+    print(f"  Fold scores: {cv_scores}")
+    print(f"  Mean accuracy: {cv_scores.mean():.4f} (+/- {cv_scores.std()*2:.4f})")
+    print(f"  Range: [{cv_scores.min():.4f}, {cv_scores.max():.4f}]")
+
+# Visualize K-Fold results
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# Box plot of CV scores
+ax1 = axes[0, 0]
+cv_scores_list = [cv_results[name]['scores'] for name in models.keys()]
+bp = ax1.boxplot(cv_scores_list, labels=models.keys(), patch_artist=True)
+for box in bp['boxes']:
+    box.set_facecolor('lightblue')
+ax1.set_ylabel('Accuracy')
+ax1.set_title('K-Fold Cross-Validation Scores Distribution')
+ax1.grid(True, alpha=0.3)
+
+# Mean CV scores with error bars
+ax2 = axes[0, 1]
+means = [cv_results[name]['mean'] for name in models.keys()]
+stds = [cv_results[name]['std'] for name in models.keys()]
+x_pos = np.arange(len(models))
+ax2.bar(x_pos, means, yerr=stds, capsize=5, color='lightgreen', edgecolor='black')
+ax2.set_xticks(x_pos)
+ax2.set_xticklabels(models.keys(), rotation=45)
+ax2.set_ylabel('Mean Accuracy')
+ax2.set_title('Mean CV Scores with Standard Deviation')
+ax2.grid(True, alpha=0.3)
+
+# Individual fold performance
+ax3 = axes[1, 0]
+for i, name in enumerate(models.keys()):
+    ax3.plot(range(1, n_folds+1), cv_results[name]['scores'], 
+             'o-', linewidth=2, label=name)
+ax3.set_xlabel('Fold')
+ax3.set_ylabel('Accuracy')
+ax3.set_title('Performance Across Folds')
+ax3.legend()
+ax3.grid(True, alpha=0.3)
+ax3.set_xticks(range(1, n_folds+1))
+
+# Variance analysis
+ax4 = axes[1, 1]
+variance = [cv_results[name]['std']**2 for name in models.keys()]
+ax4.bar(models.keys(), variance, color='lightcoral', edgecolor='black')
+ax4.set_ylabel('Variance')
+ax4.set_title('Model Variance Across Folds')
+ax4.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Identify best model by CV
+best_cv_model = max(cv_results, key=lambda x: cv_results[x]['mean'])
+print(f"\nBest Model by Cross-Validation: {best_cv_model}")
+print(f"  CV Mean Accuracy: {cv_results[best_cv_model]['mean']:.4f}")
+print(f"  CV Std: {cv_results[best_cv_model]['std']:.4f}")
+3. Stratified K-Fold Cross-Validation
+python
+print("\n" + "="*70)
+print("3. STRATIFIED K-FOLD CROSS-VALIDATION")
+print("="*70)
+
+# Create imbalanced dataset for demonstration
+X_imb, y_imb = make_classification(
+    n_samples=1000, n_features=20, n_informative=15,
+    n_redundant=5, weights=[0.9, 0.1], random_state=42
+)
+
+print("Imbalanced Dataset (90% class 0, 10% class 1):")
+print(f"Class distribution: {np.bincount(y_imb)}")
+
+# Compare regular K-Fold vs Stratified K-Fold
+n_folds = 5
+kf_regular = KFold(n_splits=n_folds, shuffle=True, random_state=42)
+kf_stratified = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=42)
+
+# Use a simple model for comparison
+model = LogisticRegression(random_state=42)
+
+# Regular K-Fold
+regular_scores = cross_val_score(model, X_imb, y_imb, cv=kf_regular, scoring='accuracy')
+print(f"\nRegular K-Fold CV scores: {regular_scores}")
+print(f"Mean: {regular_scores.mean():.4f} (+/- {regular_scores.std()*2:.4f})")
+
+# Stratified K-Fold
+stratified_scores = cross_val_score(model, X_imb, y_imb, cv=kf_stratified, scoring='accuracy')
+print(f"\nStratified K-Fold CV scores: {stratified_scores}")
+print(f"Mean: {stratified_scores.mean():.4f} (+/- {stratified_scores.std()*2:.4f})")
+
+# Visualize class distribution in each fold
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# Regular K-Fold - show fold distributions
+ax1 = axes[0, 0]
+regular_distributions = []
+for train_idx, test_idx in kf_regular.split(X_imb, y_imb):
+    regular_distributions.append(np.bincount(y_imb[test_idx]))
+
+regular_distributions = np.array(regular_distributions)
+x = np.arange(n_folds)
+width = 0.35
+
+ax1.bar(x - width/2, regular_distributions[:, 0], width, label='Class 0', color='blue', alpha=0.7)
+ax1.bar(x + width/2, regular_distributions[:, 1], width, label='Class 1', color='red', alpha=0.7)
+ax1.set_xlabel('Fold')
+ax1.set_ylabel('Count')
+ax1.set_title('Regular K-Fold - Test Set Distribution')
+ax1.set_xticks(x)
+ax1.legend()
+ax1.grid(True, alpha=0.3)
+
+# Stratified K-Fold - show fold distributions
+ax2 = axes[0, 1]
+stratified_distributions = []
+for train_idx, test_idx in kf_stratified.split(X_imb, y_imb):
+    stratified_distributions.append(np.bincount(y_imb[test_idx]))
+
+stratified_distributions = np.array(stratified_distributions)
+
+ax2.bar(x - width/2, stratified_distributions[:, 0], width, label='Class 0', color='blue', alpha=0.7)
+ax2.bar(x + width/2, stratified_distributions[:, 1], width, label='Class 1', color='red', alpha=0.7)
+ax2.set_xlabel('Fold')
+ax2.set_ylabel('Count')
+ax2.set_title('Stratified K-Fold - Test Set Distribution')
+ax2.set_xticks(x)
+ax2.legend()
+ax2.grid(True, alpha=0.3)
+
+# Compare score distributions
+ax3 = axes[1, 0]
+ax3.boxplot([regular_scores, stratified_scores], labels=['Regular K-Fold', 'Stratified K-Fold'])
+ax3.set_ylabel('Accuracy')
+ax3.set_title('Score Distribution Comparison')
+ax3.grid(True, alpha=0.3)
+
+# Variance comparison
+ax4 = axes[1, 1]
+methods = ['Regular K-Fold', 'Stratified K-Fold']
+variances = [np.var(regular_scores), np.var(stratified_scores)]
+ax4.bar(methods, variances, color=['lightcoral', 'lightgreen'], edgecolor='black')
+ax4.set_ylabel('Variance')
+ax4.set_title('Score Variance Comparison')
+ax4.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+print("\n" + "-"*50)
+print("KEY OBSERVATIONS:")
+print("-"*50)
+print("• Regular K-Fold may create folds with very different class distributions")
+print("• Stratified K-Fold maintains class proportions in each fold")
+print("• Stratified K-Fold gives more reliable estimates for imbalanced datasets")
+print("• Lower variance in stratified CV scores indicates more stable estimates")
+4. Hyperparameter Tuning with Grid Search
+python
+print("\n" + "="*70)
+print("4. HYPERPARAMETER TUNING WITH GRID SEARCH")
+print("="*70)
+
+# Define parameter grids for different models
+param_grids = {
+    'Logistic Regression': {
+        'C': [0.001, 0.01, 0.1, 1, 10, 100],
+        'penalty': ['l1', 'l2'],
+        'solver': ['liblinear']
+    },
+    'SVM': {
+        'C': [0.1, 1, 10, 100],
+        'gamma': [0.001, 0.01, 0.1, 1, 'scale'],
+        'kernel': ['rbf', 'linear']
+    },
+    'Random Forest': {
+        'n_estimators': [50, 100, 200],
+        'max_depth': [None, 5, 10, 20],
+        'min_samples_split': [2, 5, 10],
+        'min_samples_leaf': [1, 2, 4]
+    }
+}
+
+# Perform Grid Search for each model
+grid_search_results = {}
+
+for name, param_grid in param_grids.items():
+    print(f"\n{'-'*50}")
+    print(f"Grid Search for {name}")
+    print(f"{'-'*50}")
+    
+    # Get corresponding model
+    if name == 'Logistic Regression':
+        model = LogisticRegression(max_iter=1000, random_state=42)
+    elif name == 'SVM':
+        model = SVC(random_state=42)
+    elif name == 'Random Forest':
+        model = RandomForestClassifier(random_state=42)
+    
+    # Perform grid search
+    grid_search = GridSearchCV(
+        model, param_grid, cv=5, scoring='accuracy', 
+        n_jobs=-1, verbose=1, return_train_score=True
+    )
+    
+    grid_search.fit(X_train_scaled, y_train)
+    
+    # Store results
+    grid_search_results[name] = {
+        'best_params': grid_search.best_params_,
+        'best_score': grid_search.best_score_,
+        'test_score': grid_search.score(X_test_scaled, y_test),
+        'cv_results': grid_search.cv_results_
+    }
+    
+    print(f"\nBest parameters: {grid_search.best_params_}")
+    print(f"Best CV accuracy: {grid_search.best_score_:.4f}")
+    print(f"Test accuracy: {grid_search.score(X_test_scaled, y_test):.4f}")
+
+# Visualize grid search results
+fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+
+# Parameter importance for each model
+for idx, (name, results) in enumerate(grid_search_results.items()):
+    if idx >= 4:
+        break
+    ax = axes[idx // 2, idx % 2]
+    
+    cv_results = results['cv_results']
+    
+    # Extract parameter combinations and scores
+    params = cv_results['params']
+    mean_scores = cv_results['mean_test_score']
+    std_scores = cv_results['std_test_score']
+    
+    # Create parameter strings for x-axis
+    param_strings = []
+    for p in params[:10]:  # Show first 10 combinations
+        param_str = ', '.join([f"{k}={v}" for k, v in p.items()])
+        param_strings.append(param_str[:30] + '...' if len(param_str) > 30 else param_str)
+    
+    # Plot top 10 parameter combinations
+    top_indices = np.argsort(mean_scores)[-10:]
+    
+    ax.barh(range(len(top_indices)), mean_scores[top_indices], 
+            xerr=std_scores[top_indices], capsize=3, color='skyblue', edgecolor='black')
+    ax.set_yticks(range(len(top_indices)))
+    ax.set_yticklabels([param_strings[i] for i in top_indices], fontsize=8)
+    ax.set_xlabel('Accuracy')
+    ax.set_title(f'{name} - Top Parameter Combinations')
+    ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Compare default vs tuned models
+print("\n" + "-"*50)
+print("DEFAULT VS TUNED MODEL COMPARISON")
+print("-"*50)
+
+comparison_data = []
+for name in grid_search_results.keys():
+    # Default model
+    if name == 'Logistic Regression':
+        default_model = LogisticRegression(random_state=42)
+    elif name == 'SVM':
+        default_model = SVC(random_state=42)
+    elif name == 'Random Forest':
+        default_model = RandomForestClassifier(random_state=42)
+    
+    default_model.fit(X_train_scaled, y_train)
+    default_score = default_model.score(X_test_scaled, y_test)
+    
+    # Tuned model
+    tuned_score = grid_search_results[name]['test_score']
+    improvement = ((tuned_score - default_score) / default_score) * 100
+    
+    comparison_data.append({
+        'Model': name,
+        'Default Score': default_score,
+        'Tuned Score': tuned_score,
+        'Improvement (%)': improvement
+    })
+
+comparison_df = pd.DataFrame(comparison_data)
+print(comparison_df.round(4).to_string(index=False))
+
+# Visualize comparison
+plt.figure(figsize=(10, 6))
+x = np.arange(len(comparison_df))
+width = 0.35
+
+plt.bar(x - width/2, comparison_df['Default Score'], width, label='Default', color='lightblue', edgecolor='black')
+plt.bar(x + width/2, comparison_df['Tuned Score'], width, label='Tuned', color='lightgreen', edgecolor='black')
+
+plt.xlabel('Model')
+plt.ylabel('Accuracy')
+plt.title('Default vs Tuned Model Performance')
+plt.xticks(x, comparison_df['Model'])
+plt.legend()
+plt.grid(True, alpha=0.3)
+
+# Add improvement annotations
+for i, row in comparison_df.iterrows():
+    improvement = row['Improvement (%)']
+    color = 'green' if improvement > 0 else 'red'
+    plt.annotate(f'{improvement:+.1f}%', 
+                xy=(i, max(row['Default Score'], row['Tuned Score']) + 0.02),
+                ha='center', color=color, fontweight='bold')
+
+plt.tight_layout()
+plt.show()
+5. ROC Curve and AUC for Model Evaluation
+python
+print("\n" + "="*70)
+print("5. ROC CURVE AND AUC ANALYSIS")
+print("="*70)
+
+# Train models and get probability predictions
+plt.figure(figsize=(12, 8))
+
+# Dictionary to store ROC curves
+roc_results = {}
+
+for name, model in models.items():
+    # Train model
+    model.fit(X_train_scaled, y_train)
+    
+    # Get prediction probabilities
+    if hasattr(model, 'predict_proba'):
+        y_pred_proba = model.predict_proba(X_test_scaled)[:, 1]
+    else:
+        # For models without predict_proba (like SVM without probability=True)
+        continue
+    
+    # Calculate ROC curve
+    fpr, tpr, thresholds = roc_curve(y_test, y_pred_proba)
+    roc_auc = auc(fpr, tpr)
+    
+    roc_results[name] = {
+        'fpr': fpr,
+        'tpr': tpr,
+        'auc': roc_auc,
+        'thresholds': thresholds
+    }
+    
+    # Plot ROC curve
+    plt.plot(fpr, tpr, lw=2, label=f'{name} (AUC = {roc_auc:.4f})')
+
+# Plot diagonal line (random classifier)
+plt.plot([0, 1], [0, 1], 'k--', lw=2, label='Random Classifier (AUC = 0.5)')
+
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate (1 - Specificity)')
+plt.ylabel('True Positive Rate (Sensitivity)')
+plt.title('ROC Curves for Different Classifiers')
+plt.legend(loc="lower right")
+plt.grid(True, alpha=0.3)
+plt.show()
+
+# Find best model by AUC
+best_auc_model = max(roc_results, key=lambda x: roc_results[x]['auc'])
+print(f"\nBest Model by AUC: {best_auc_model} (AUC = {roc_results[best_auc_model]['auc']:.4f})")
+
+# Detailed ROC analysis for best model
+best_model = models[best_auc_model]
+best_model.fit(X_train_scaled, y_train)
+y_pred_proba_best = best_model.predict_proba(X_test_scaled)[:, 1]
+
+fpr, tpr, thresholds = roc_curve(y_test, y_pred_proba_best)
+
+# Find optimal threshold using Youden's J statistic
+j_scores = tpr - fpr
+optimal_idx = np.argmax(j_scores)
+optimal_threshold = thresholds[optimal_idx]
+optimal_tpr = tpr[optimal_idx]
+optimal_fpr = fpr[optimal_idx]
+
+print(f"\nOptimal Threshold (Youden's J): {optimal_threshold:.4f}")
+print(f"  True Positive Rate at optimal threshold: {optimal_tpr:.4f}")
+print(f"  False Positive Rate at optimal threshold: {optimal_fpr:.4f}")
+
+# Create comprehensive ROC visualization
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# Main ROC curve with optimal point
+ax1 = axes[0, 0]
+ax1.plot(fpr, tpr, 'b-', lw=2, label=f'ROC curve (AUC = {roc_results[best_auc_model]["auc"]:.4f})')
+ax1.plot([0, 1], [0, 1], 'k--', lw=2, label='Random')
+ax1.scatter(optimal_fpr, optimal_tpr, c='red', s=100, marker='o',
+           label=f'Optimal Threshold ({optimal_threshold:.3f})')
+ax1.set_xlabel('False Positive Rate')
+ax1.set_ylabel('True Positive Rate')
+ax1.set_title(f'ROC Curve - {best_auc_model}')
+ax1.legend(loc="lower right")
+ax1.grid(True, alpha=0.3)
+
+# Threshold analysis
+ax2 = axes[0, 1]
+ax2.plot(thresholds, tpr[:-1], 'b-', label='True Positive Rate', linewidth=2)
+ax2.plot(thresholds, fpr[:-1], 'r-', label='False Positive Rate', linewidth=2)
+ax2.axvline(x=optimal_threshold, color='green', linestyle='--', 
+            label=f'Optimal ({optimal_threshold:.3f})')
+ax2.set_xlabel('Threshold')
+ax2.set_ylabel('Rate')
+ax2.set_title('TPR and FPR vs Threshold')
+ax2.legend()
+ax2.grid(True, alpha=0.3)
+ax2.invert_xaxis()
+
+# Youden's J statistic
+ax3 = axes[1, 0]
+ax3.plot(thresholds, j_scores[:-1], 'g-', linewidth=2)
+ax3.axvline(x=optimal_threshold, color='green', linestyle='--',
+            label=f'Max J = {j_scores[optimal_idx]:.4f}')
+ax3.set_xlabel('Threshold')
+ax3.set_ylabel("Youden's J Statistic")
+ax3.set_title('Youden\'s Index vs Threshold')
+ax3.legend()
+ax3.grid(True, alpha=0.3)
+ax3.invert_xaxis()
+
+# Precision-Recall curve
+ax4 = axes[1, 1]
+precision, recall, _ = precision_recall_curve(y_test, y_pred_proba_best)
+pr_auc = auc(recall, precision)
+
+ax4.plot(recall, precision, 'purple', lw=2, label=f'PR curve (AUC = {pr_auc:.4f})')
+ax4.set_xlabel('Recall')
+ax4.set_ylabel('Precision')
+ax4.set_title('Precision-Recall Curve')
+ax4.legend()
+ax4.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Compare AUC scores
+plt.figure(figsize=(10, 6))
+models_list = list(roc_results.keys())
+auc_scores = [roc_results[m]['auc'] for m in models_list]
+
+bars = plt.bar(models_list, auc_scores, color='skyblue', edgecolor='black')
+plt.axhline(y=0.5, color='red', linestyle='--', label='Random Classifier (0.5)')
+plt.ylabel('AUC Score')
+plt.title('AUC Score Comparison')
+plt.legend()
+plt.grid(True, alpha=0.3)
+
+# Add value labels
+for bar, score in zip(bars, auc_scores):
+    plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+             f'{score:.4f}', ha='center', va='bottom')
+
+plt.tight_layout()
+plt.show()
+
+# AUC interpretation
+print("\n" + "-"*50)
+print("AUC INTERPRETATION:")
+print("-"*50)
+print("• AUC = 1.0: Perfect classifier")
+print("• AUC > 0.9: Excellent discrimination")
+print("• 0.8 < AUC < 0.9: Good discrimination")
+print("• 0.7 < AUC < 0.8: Fair discrimination")
+print("• 0.6 < AUC < 0.7: Poor discrimination")
+print("• AUC = 0.5: No discrimination (random)")
+print("• AUC < 0.5: Worse than random (reverse predictions)")
+Summary and Best Practices
+python
+print("\n" + "="*70)
+print("MODEL EVALUATION - SUMMARY AND BEST PRACTICES")
+print("="*70)
+
+print("""
+EVALUATION METHODS COMPARISON:
+=============================
+
+1. Train-Test Split:
+   ✓ Simple and fast
+   ✓ Good for large datasets
+   ✗ High variance (depends on single split)
+   ✗ Wastes data (especially for small datasets)
+
+2. K-Fold Cross-Validation:
+   ✓ More reliable estimate
+   ✓ Uses all data for training and testing
+   ✓ Reduces variance
+   ✗ Computationally expensive
+   ✗ May have class imbalance issues
+
+3. Stratified K-Fold:
+   ✓ Maintains class distribution
+   ✓ Better for imbalanced datasets
+   ✓ More reliable than regular K-Fold
+   ✗ Same computational cost as K-Fold
+
+4. Grid Search with CV:
+   ✓ Finds optimal hyperparameters
+   ✓ Prevents overfitting to test set
+   ✓ Comprehensive parameter exploration
+   ✗ Very computationally expensive
+   ✗ May overfit to validation folds
+
+METRICS INTERPRETATION:
+======================
+
+Accuracy: Overall correctness
+- Best for balanced datasets
+- Misleading for imbalanced data
+
+Precision: When false positives are costly
+- "Of all positive predictions, how many were correct?"
+- Important for spam detection, fraud detection
+
+Recall: When false negatives are costly
+- "Of all actual positives, how many did we catch?"
+- Important for disease detection, safety systems
+
+F1-Score: Harmonic mean of precision and recall
+- Good for imbalanced datasets
+- Balances precision and recall
+
+ROC-AUC: Overall discrimination ability
+- Independent of threshold
+- Good for comparing models
+- Insensitive to class imbalance
+
+BEST PRACTICES:
+==============
+
+1. Always use cross-validation for model selection
+2. Use stratified CV for classification problems
+3. Set aside a final test set only for final evaluation
+4. Use multiple metrics to evaluate performance
+5. Consider the business context when choosing metrics
+6. For imbalanced data, use precision-recall curves
+7. Document all evaluation procedures for reproducibility
+
+RECOMMENDED WORKFLOW:
+====================
+
+1. Split data into train (70%) and test (30%)
+2. Use cross-validation on training data for model selection
+3. Perform hyperparameter tuning with GridSearchCV
+4. Select best model based on CV performance
+5. Evaluate final model on held-out test set
+6. Report multiple metrics and confidence intervals
+7. Document all steps and random seeds
+""")
+
+print("\n" + "="*70)
+print("END OF MODEL EVALUATION ANALYSIS")
+print("="*70)

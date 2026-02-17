@@ -1,0 +1,676 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
+from sklearn.preprocessing import StandardScaler
+from sklearn.datasets import load_iris, make_blobs, make_moons, make_circles
+from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
+from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
+from scipy.spatial.distance import pdist
+import warnings
+warnings.filterwarnings('ignore')
+
+print("="*70)
+print("UNSUPERVISED LEARNING - CLUSTERING ANALYSIS")
+print("="*70)
+1. K-Means Clustering
+python
+print("\n" + "="*70)
+print("1. K-MEANS CLUSTERING")
+print("="*70)
+
+# Load Iris dataset (without labels for clustering)
+iris = load_iris()
+X = iris.data
+y_true = iris.target  # Keep for comparison only
+feature_names = iris.feature_names
+target_names = iris.target_names
+
+print(f"Dataset Shape: {X.shape}")
+print(f"Feature names: {feature_names}")
+print(f"True classes (for reference): {target_names}")
+
+# Scale the features (important for clustering)
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Apply K-Means with K=3 (known number of classes)
+kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+y_kmeans = kmeans.fit_predict(X_scaled)
+
+print(f"\nK-Means Cluster Centers:\n{kmeans.cluster_centers_}")
+
+# Visualize clusters (using first two features)
+plt.figure(figsize=(15, 5))
+
+plt.subplot(1, 3, 1)
+plt.scatter(X_scaled[:, 0], X_scaled[:, 1], c=y_kmeans, cmap='viridis', 
+            edgecolors='black', linewidth=0.5, s=50)
+plt.scatter(kmeans.cluster_centers_[:, 0], kmeans.cluster_centers_[:, 1], 
+            c='red', marker='X', s=200, linewidths=3, label='Centroids')
+plt.xlabel(feature_names[0])
+plt.ylabel(feature_names[1])
+plt.title('K-Means Clusters (Feature 1-2)')
+plt.legend()
+plt.grid(True, alpha=0.3)
+
+plt.subplot(1, 3, 2)
+plt.scatter(X_scaled[:, 1], X_scaled[:, 2], c=y_kmeans, cmap='viridis', 
+            edgecolors='black', linewidth=0.5, s=50)
+plt.scatter(kmeans.cluster_centers_[:, 1], kmeans.cluster_centers_[:, 2], 
+            c='red', marker='X', s=200, linewidths=3, label='Centroids')
+plt.xlabel(feature_names[1])
+plt.ylabel(feature_names[2])
+plt.title('K-Means Clusters (Feature 2-3)')
+plt.legend()
+plt.grid(True, alpha=0.3)
+
+plt.subplot(1, 3, 3)
+plt.scatter(X_scaled[:, 2], X_scaled[:, 3], c=y_kmeans, cmap='viridis', 
+            edgecolors='black', linewidth=0.5, s=50)
+plt.scatter(kmeans.cluster_centers_[:, 2], kmeans.cluster_centers_[:, 3], 
+            c='red', marker='X', s=200, linewidths=3, label='Centroids')
+plt.xlabel(feature_names[2])
+plt.ylabel(feature_names[3])
+plt.title('K-Means Clusters (Feature 3-4)')
+plt.legend()
+plt.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Compare with true labels (for visualization only)
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+axes[0].scatter(X_scaled[:, 0], X_scaled[:, 1], c=y_true, cmap='viridis', 
+                edgecolors='black', linewidth=0.5, s=50)
+axes[0].set_xlabel(feature_names[0])
+axes[0].set_ylabel(feature_names[1])
+axes[0].set_title('True Labels')
+axes[0].grid(True, alpha=0.3)
+
+axes[1].scatter(X_scaled[:, 0], X_scaled[:, 1], c=y_kmeans, cmap='viridis', 
+                edgecolors='black', linewidth=0.5, s=50)
+axes[1].scatter(kmeans.cluster_centers_[:, 0], kmeans.cluster_centers_[:, 1], 
+                c='red', marker='X', s=200, linewidths=3, label='Centroids')
+axes[1].set_xlabel(feature_names[0])
+axes[1].set_ylabel(feature_names[1])
+axes[1].set_title('K-Means Clusters')
+axes[1].legend()
+axes[1].grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+2. Choosing Optimal Number of Clusters (Elbow Method)
+python
+print("\n" + "="*70)
+print("2. ELBOW METHOD FOR OPTIMAL K")
+print("="*70)
+
+# Calculate WCSS for different K values
+wcss = []
+silhouette_scores = []
+K_range = range(2, 11)
+
+for k in K_range:
+    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+    y_pred = kmeans.fit_predict(X_scaled)
+    wcss.append(kmeans.inertia_)
+    
+    # Calculate silhouette score (requires at least 2 clusters)
+    if k >= 2:
+        sil_score = silhouette_score(X_scaled, y_pred)
+        silhouette_scores.append(sil_score)
+        print(f"K={k}: WCSS={kmeans.inertia_:.2f}, Silhouette Score={sil_score:.4f}")
+    else:
+        silhouette_scores.append(0)
+
+# Find optimal K using elbow method (rate of change)
+wcss_diff = np.diff(wcss)
+wcss_diff_rate = np.diff(wcss_diff)
+optimal_k_elbow = np.argmax(wcss_diff_rate) + 3  # +3 because diff reduces length by 2 and start from K=2
+
+# Find optimal K using silhouette score
+optimal_k_silhouette = K_range[np.argmax(silhouette_scores)]
+
+# Visualize elbow method
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# WCSS plot
+ax1 = axes[0, 0]
+ax1.plot(K_range, wcss, 'bo-', linewidth=2, markersize=8)
+ax1.axvline(x=optimal_k_elbow, color='red', linestyle='--', 
+            label=f'Optimal K (Elbow)={optimal_k_elbow}')
+ax1.set_xlabel('Number of Clusters (K)')
+ax1.set_ylabel('WCSS (Inertia)')
+ax1.set_title('Elbow Method for Optimal K')
+ax1.legend()
+ax1.grid(True, alpha=0.3)
+
+# Silhouette score plot
+ax2 = axes[0, 1]
+ax2.plot(K_range, silhouette_scores, 'go-', linewidth=2, markersize=8)
+ax2.axvline(x=optimal_k_silhouette, color='red', linestyle='--', 
+            label=f'Optimal K (Silhouette)={optimal_k_silhouette}')
+ax2.set_xlabel('Number of Clusters (K)')
+ax2.set_ylabel('Silhouette Score')
+ax2.set_title('Silhouette Score for Different K')
+ax2.legend()
+ax2.grid(True, alpha=0.3)
+
+# Second derivative of WCSS (rate of change)
+ax3 = axes[1, 0]
+ax3.plot(K_range[1:], wcss_diff, 'mo-', linewidth=2, markersize=8)
+ax3.axhline(y=0, color='black', linestyle='-', alpha=0.3)
+ax3.set_xlabel('Number of Clusters (K)')
+ax3.set_ylabel('Rate of Change (ΔWCSS)')
+ax3.set_title('First Derivative of WCSS')
+ax3.grid(True, alpha=0.3)
+
+# Compare cluster assignments for different K
+ax4 = axes[1, 1]
+k_values_to_compare = [2, 3, 4, 5]
+colors = ['red', 'blue', 'green', 'purple']
+
+for i, k in enumerate(k_values_to_compare):
+    kmeans_temp = KMeans(n_clusters=k, random_state=42, n_init=10)
+    y_temp = kmeans_temp.fit_predict(X_scaled)
+    
+    # Use first two features for visualization
+    ax4.scatter(X_scaled[y_temp == 0, 0], X_scaled[y_temp == 0, 1], 
+                c=colors[i % len(colors)], label=f'K={k}', alpha=0.5, s=30)
+
+ax4.set_xlabel(feature_names[0])
+ax4.set_ylabel(feature_names[1])
+ax4.set_title('Cluster Assignments for Different K')
+ax4.legend()
+ax4.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+print(f"\nOptimal K (Elbow Method): {optimal_k_elbow}")
+print(f"Optimal K (Silhouette Score): {optimal_k_silhouette}")
+3. Hierarchical Clustering
+python
+print("\n" + "="*70)
+print("3. HIERARCHICAL CLUSTERING")
+print("="*70)
+
+# Perform hierarchical clustering
+linkage_methods = ['ward', 'complete', 'average', 'single']
+fig, axes = plt.subplots(2, 2, figsize=(16, 10))
+
+for idx, method in enumerate(linkage_methods):
+    ax = axes[idx // 2, idx % 2]
+    
+    # Compute linkage matrix
+    Z = linkage(X_scaled, method=method)
+    
+    # Plot dendrogram
+    dendrogram(Z, ax=ax, truncate_mode='level', p=5, 
+               show_leaf_counts=True, leaf_rotation=90)
+    ax.set_title(f'Dendrogram - {method.capitalize()} Linkage')
+    ax.set_xlabel('Sample Index')
+    ax.set_ylabel('Distance')
+    ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Apply hierarchical clustering with optimal K
+hierarchical = AgglomerativeClustering(n_clusters=optimal_k_silhouette, linkage='ward')
+y_hierarchical = hierarchical.fit_predict(X_scaled)
+
+# Visualize hierarchical clustering results
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+# Plot clusters
+axes[0].scatter(X_scaled[:, 0], X_scaled[:, 1], c=y_hierarchical, cmap='viridis', 
+                edgecolors='black', linewidth=0.5, s=50)
+axes[0].set_xlabel(feature_names[0])
+axes[0].set_ylabel(feature_names[1])
+axes[0].set_title('Hierarchical Clustering (Ward)')
+axes[0].grid(True, alpha=0.3)
+
+# Plot with different linkage
+hierarchical_complete = AgglomerativeClustering(n_clusters=optimal_k_silhouette, linkage='complete')
+y_hierarchical_complete = hierarchical_complete.fit_predict(X_scaled)
+
+axes[1].scatter(X_scaled[:, 0], X_scaled[:, 1], c=y_hierarchical_complete, cmap='viridis', 
+                edgecolors='black', linewidth=0.5, s=50)
+axes[1].set_xlabel(feature_names[0])
+axes[1].set_ylabel(feature_names[1])
+axes[1].set_title('Hierarchical Clustering (Complete)')
+axes[1].grid(True, alpha=0.3)
+
+# Plot dendrogram with cutoff
+ax3 = axes[2]
+Z = linkage(X_scaled, method='ward')
+dendrogram(Z, ax=ax3, truncate_mode='level', p=5, 
+           show_leaf_counts=True, leaf_rotation=90)
+ax3.axhline(y=10, color='red', linestyle='--', linewidth=2, label=f'Cutoff (K={optimal_k_silhouette})')
+ax3.set_title('Dendrogram with Cutoff')
+ax3.set_xlabel('Sample Index')
+ax3.set_ylabel('Distance')
+ax3.legend()
+ax3.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Cut dendrogram at different levels
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+cut_levels = [5, 10, 15]
+
+for i, cutoff in enumerate(cut_levels):
+    # Get clusters at different cutoff levels
+    clusters = fcluster(Z, cutoff, criterion='distance')
+    n_clusters = len(np.unique(clusters))
+    
+    axes[i].scatter(X_scaled[:, 0], X_scaled[:, 1], c=clusters, cmap='viridis', 
+                    edgecolors='black', linewidth=0.5, s=50)
+    axes[i].set_xlabel(feature_names[0])
+    axes[i].set_ylabel(feature_names[1])
+    axes[i].set_title(f'Cutoff Distance={cutoff} (K={n_clusters})')
+    axes[i].grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+4. DBSCAN Clustering
+python
+print("\n" + "="*70)
+print("4. DBSCAN CLUSTERING")
+print("="*70)
+
+# Create synthetic datasets to demonstrate DBSCAN capabilities
+datasets = [
+    ('Blobs', *make_blobs(n_samples=300, centers=3, cluster_std=0.8, random_state=42)),
+    ('Moons', *make_moons(n_samples=300, noise=0.05, random_state=42)),
+    ('Circles', *make_circles(n_samples=300, noise=0.05, factor=0.5, random_state=42)),
+    ('Iris', X_scaled, y_true)
+]
+
+# Test DBSCAN with different parameters
+eps_values = [0.3, 0.5, 0.7]
+min_samples_values = [3, 5, 10]
+
+print("\nDBSCAN Parameter Tuning:")
+print("-"*50)
+
+for dataset_name, X_data, y_data in datasets[:1]:  # Use first dataset for parameter tuning
+    print(f"\nDataset: {dataset_name}")
+    
+    for eps in eps_values:
+        for min_samples in min_samples_values:
+            dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+            y_dbscan = dbscan.fit_predict(X_data)
+            
+            n_clusters = len(set(y_dbscan)) - (1 if -1 in y_dbscan else 0)
+            n_noise = list(y_dbscan).count(-1)
+            
+            print(f"  eps={eps}, min_samples={min_samples}: "
+                  f"Clusters={n_clusters}, Noise={n_noise}")
+
+# Apply DBSCAN to different datasets
+fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+
+for idx, (dataset_name, X_data, y_data) in enumerate(datasets):
+    ax = axes[idx // 2, idx % 2]
+    
+    # Scale the data
+    X_scaled_temp = StandardScaler().fit_transform(X_data)
+    
+    # Apply DBSCAN
+    dbscan = DBSCAN(eps=0.3, min_samples=5)
+    y_dbscan = dbscan.fit_predict(X_scaled_temp)
+    
+    # Count clusters and noise
+    n_clusters = len(set(y_dbscan)) - (1 if -1 in y_dbscan else 0)
+    n_noise = list(y_dbscan).count(-1)
+    
+    # Plot results
+    unique_labels = set(y_dbscan)
+    colors = plt.cm.viridis(np.linspace(0, 1, len(unique_labels)))
+    
+    for k, col in zip(unique_labels, colors):
+        if k == -1:
+            # Black used for noise
+            col = 'black'
+            label = 'Noise'
+        else:
+            label = f'Cluster {k}'
+        
+        class_member_mask = (y_dbscan == k)
+        ax.scatter(X_scaled_temp[class_member_mask, 0], 
+                   X_scaled_temp[class_member_mask, 1],
+                   c=[col], label=label if k == -1 or k == 0 else "",
+                   edgecolors='black', linewidth=0.5, s=50, alpha=0.8)
+    
+    ax.set_title(f'{dataset_name} - DBSCAN (Clusters={n_clusters}, Noise={n_noise})')
+    ax.set_xlabel('Feature 1')
+    ax.set_ylabel('Feature 2')
+    ax.grid(True, alpha=0.3)
+    
+    if idx == 0:  # Only show legend for first plot
+        ax.legend(loc='best')
+
+plt.tight_layout()
+plt.show()
+
+# Apply DBSCAN to Iris dataset with different eps values
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+eps_values = [0.2, 0.3, 0.5, 0.8]
+
+for idx, eps in enumerate(eps_values):
+    ax = axes[idx // 2, idx % 2]
+    
+    dbscan = DBSCAN(eps=eps, min_samples=5)
+    y_dbscan = dbscan.fit_predict(X_scaled)
+    
+    n_clusters = len(set(y_dbscan)) - (1 if -1 in y_dbscan else 0)
+    n_noise = list(y_dbscan).count(-1)
+    
+    unique_labels = set(y_dbscan)
+    colors = plt.cm.viridis(np.linspace(0, 1, len(unique_labels)))
+    
+    for k, col in zip(unique_labels, colors):
+        if k == -1:
+            col = 'black'
+            label = 'Noise'
+        else:
+            label = f'Cluster {k}'
+        
+        class_member_mask = (y_dbscan == k)
+        ax.scatter(X_scaled[class_member_mask, 0], 
+                   X_scaled[class_member_mask, 1],
+                   c=[col], label=label if k == -1 or k == 0 else "",
+                   edgecolors='black', linewidth=0.5, s=50, alpha=0.8)
+    
+    ax.set_title(f'DBSCAN (eps={eps}) - Clusters={n_clusters}, Noise={n_noise}')
+    ax.set_xlabel(feature_names[0])
+    ax.set_ylabel(feature_names[1])
+    ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+5. Evaluating Clustering Performance
+python
+print("\n" + "="*70)
+print("5. CLUSTERING PERFORMANCE EVALUATION")
+print("="*70)
+
+# Apply different clustering algorithms to Iris dataset
+clustering_algorithms = {
+    'K-Means (K=3)': KMeans(n_clusters=3, random_state=42, n_init=10),
+    'K-Means (Optimal K)': KMeans(n_clusters=optimal_k_silhouette, random_state=42, n_init=10),
+    'Hierarchical (Ward)': AgglomerativeClustering(n_clusters=3, linkage='ward'),
+    'Hierarchical (Complete)': AgglomerativeClustering(n_clusters=3, linkage='complete'),
+    'DBSCAN (eps=0.3)': DBSCAN(eps=0.3, min_samples=5),
+    'DBSCAN (eps=0.5)': DBSCAN(eps=0.5, min_samples=5)
+}
+
+evaluation_results = []
+
+for name, algorithm in clustering_algorithms.items():
+    # Fit and predict
+    y_pred = algorithm.fit_predict(X_scaled)
+    
+    # Handle DBSCAN noise points (-1) for evaluation metrics
+    if name.startswith('DBSCAN'):
+        # Remove noise points for metric calculation
+        mask = y_pred != -1
+        if np.sum(mask) > 1:  # Need at least 2 points
+            X_eval = X_scaled[mask]
+            y_eval = y_pred[mask]
+            
+            # Calculate metrics (only if we have valid clusters)
+            if len(set(y_eval)) > 1:
+                sil_score = silhouette_score(X_eval, y_eval)
+                davies_score = davies_bouldin_score(X_eval, y_eval)
+                calinski_score = calinski_harabasz_score(X_eval, y_eval)
+                n_clusters = len(set(y_eval))
+                n_noise = np.sum(~mask)
+            else:
+                sil_score = davies_score = calinski_score = np.nan
+                n_clusters = len(set(y_eval))
+                n_noise = np.sum(~mask)
+        else:
+            sil_score = davies_score = calinski_score = np.nan
+            n_clusters = 0
+            n_noise = len(y_pred)
+    else:
+        # For K-Means and Hierarchical
+        sil_score = silhouette_score(X_scaled, y_pred)
+        davies_score = davies_bouldin_score(X_scaled, y_pred)
+        calinski_score = calinski_harabasz_score(X_scaled, y_pred)
+        n_clusters = len(set(y_pred))
+        n_noise = 0
+    
+    evaluation_results.append({
+        'Algorithm': name,
+        'Clusters': n_clusters,
+        'Noise Points': n_noise,
+        'Silhouette Score': sil_score,
+        'Davies-Bouldin Index': davies_score,
+        'Calinski-Harabasz Score': calinski_score
+    })
+
+# Create evaluation DataFrame
+eval_df = pd.DataFrame(evaluation_results)
+print("\nClustering Performance Comparison:")
+print("="*60)
+print(eval_df.round(4).to_string(index=False))
+
+# Visualize evaluation metrics
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# Silhouette Score
+ax1 = axes[0, 0]
+algorithms = eval_df['Algorithm'].tolist()
+sil_scores = eval_df['Silhouette Score'].tolist()
+bars = ax1.barh(algorithms, sil_scores, color='skyblue', edgecolor='black')
+ax1.set_xlabel('Silhouette Score (higher is better)')
+ax1.set_title('Silhouette Score Comparison')
+ax1.grid(True, alpha=0.3)
+
+# Davies-Bouldin Index
+ax2 = axes[0, 1]
+db_scores = eval_df['Davies-Bouldin Index'].tolist()
+bars = ax2.barh(algorithms, db_scores, color='lightcoral', edgecolor='black')
+ax2.set_xlabel('Davies-Bouldin Index (lower is better)')
+ax2.set_title('Davies-Bouldin Index Comparison')
+ax2.grid(True, alpha=0.3)
+
+# Calinski-Harabasz Score
+ax3 = axes[1, 0]
+ch_scores = eval_df['Calinski-Harabasz Score'].tolist()
+bars = ax3.barh(algorithms, ch_scores, color='lightgreen', edgecolor='black')
+ax3.set_xlabel('Calinski-Harabasz Score (higher is better)')
+ax3.set_title('Calinski-Harabasz Score Comparison')
+ax3.grid(True, alpha=0.3)
+
+# Clusters and Noise
+ax4 = axes[1, 1]
+x = np.arange(len(algorithms))
+width = 0.35
+ax4.bar(x - width/2, eval_df['Clusters'], width, label='Clusters', color='blue', alpha=0.7)
+ax4.bar(x + width/2, eval_df['Noise Points'], width, label='Noise', color='red', alpha=0.7)
+ax4.set_xlabel('Algorithm')
+ax4.set_ylabel('Count')
+ax4.set_title('Clusters and Noise Points')
+ax4.set_xticks(x)
+ax4.set_xticklabels(algorithms, rotation=45, ha='right')
+ax4.legend()
+ax4.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Visualize cluster assignments for comparison
+fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+
+for idx, (name, algorithm) in enumerate(clustering_algorithms.items()):
+    if idx >= 6:
+        break
+    
+    ax = axes[idx // 3, idx % 3]
+    y_pred = algorithm.fit_predict(X_scaled)
+    
+    # Handle noise points for DBSCAN
+    if name.startswith('DBSCAN'):
+        unique_labels = set(y_pred)
+        colors = plt.cm.viridis(np.linspace(0, 1, len(unique_labels)))
+        
+        for k, col in zip(unique_labels, colors):
+            if k == -1:
+                col = 'black'
+                label = 'Noise'
+            else:
+                label = f'Cluster {k}'
+            
+            class_member_mask = (y_pred == k)
+            ax.scatter(X_scaled[class_member_mask, 0], 
+                      X_scaled[class_member_mask, 1],
+                      c=[col], label=label if k == -1 or k == 0 else "",
+                      edgecolors='black', linewidth=0.5, s=30, alpha=0.8)
+    else:
+        scatter = ax.scatter(X_scaled[:, 0], X_scaled[:, 1], c=y_pred, 
+                           cmap='viridis', edgecolors='black', linewidth=0.5, s=30)
+    
+    ax.set_title(f'{name}')
+    ax.set_xlabel(feature_names[0])
+    ax.set_ylabel(feature_names[1])
+    ax.grid(True, alpha=0.3)
+    
+    if idx == 0:
+        ax.legend(loc='best')
+
+plt.tight_layout()
+plt.show()
+Summary and Practical Guidelines
+python
+print("\n" + "="*70)
+print("CLUSTERING - SUMMARY AND PRACTICAL GUIDELINES")
+print("="*70)
+
+print("""
+CLUSTERING ALGORITHMS COMPARISON:
+================================
+
+1. K-MEANS CLUSTERING:
+   • Advantages:
+     - Simple and fast
+     - Works well with spherical clusters
+     - Scales well to large datasets
+   • Disadvantages:
+     - Requires specifying K in advance
+     - Sensitive to initial centroid selection
+     - Assumes spherical clusters of similar size
+   • Best for: Well-separated, spherical clusters
+
+2. HIERARCHICAL CLUSTERING:
+   • Advantages:
+     - No need to specify number of clusters
+     - Provides dendrogram for visualization
+     - Deterministic (no random initialization)
+   • Disadvantages:
+     - Computationally expensive (O(n³))
+     - Sensitive to noise and outliers
+     - Difficult to handle large datasets
+   • Best for: Small datasets, hierarchical structure exploration
+
+3. DBSCAN CLUSTERING:
+   • Advantages:
+     - No need to specify number of clusters
+     - Can find arbitrarily shaped clusters
+     - Robust to outliers (noise detection)
+   • Disadvantages:
+     - Sensitive to parameter selection (eps, min_samples)
+     - Struggles with varying density clusters
+     - Curse of dimensionality in high dimensions
+   • Best for: Non-spherical clusters, noisy data
+
+EVALUATION METRICS INTERPRETATION:
+================================
+• Silhouette Score (range: -1 to 1):
+  - > 0.7: Strong cluster structure
+  - 0.5 - 0.7: Reasonable structure
+  - 0.25 - 0.5: Weak structure
+  - < 0.25: No substantial structure
+
+• Davies-Bouldin Index (lower is better):
+  - < 0.5: Excellent separation
+  - 0.5 - 0.75: Good separation
+  - 0.75 - 1.0: Moderate separation
+  - > 1.0: Poor separation
+
+• Calinski-Harabasz Score (higher is better):
+  - Ratio of between-cluster to within-cluster variance
+  - No fixed thresholds, compare across algorithms
+
+CHOOSING THE RIGHT ALGORITHM:
+============================
+1. Known number of clusters + spherical data → K-Means
+2. Unknown number of clusters + want hierarchy → Hierarchical
+3. Non-spherical clusters + noise present → DBSCAN
+4. Large dataset + approximate clusters → K-Means
+5. Small dataset + want detailed analysis → Hierarchical
+6. Real-world messy data + outliers → DBSCAN
+
+PRACTICAL TIPS:
+==============
+1. Always scale features before clustering
+2. Visualize data when possible (2D/3D)
+3. Try multiple algorithms and compare
+4. Use domain knowledge to validate clusters
+5. Consider ensemble clustering for robust results
+6. Document parameter choices and their impact
+""")
+
+# Function to recommend clustering algorithm based on data characteristics
+def recommend_clustering_algorithm(n_samples, n_features, cluster_shape='spherical', 
+                                    noise_level='low', need_hierarchy=False):
+    """
+    Recommend clustering algorithm based on data characteristics
+    """
+    print("\n" + "-"*50)
+    print("CLUSTERING ALGORITHM RECOMMENDATION")
+    print("-"*50)
+    print(f"Data Characteristics:")
+    print(f"  • Samples: {n_samples}")
+    print(f"  • Features: {n_features}")
+    print(f"  • Expected cluster shape: {cluster_shape}")
+    print(f"  • Noise level: {noise_level}")
+    print(f"  • Need hierarchy: {need_hierarchy}")
+    
+    print("\nRecommendations:")
+    
+    if n_samples > 10000:
+        print("  ✓ K-Means (scalable to large datasets)")
+    
+    if cluster_shape.lower() == 'spherical' and noise_level.lower() == 'low':
+        print("  ✓ K-Means (good for spherical clusters)")
+    
+    if cluster_shape.lower() == 'arbitrary' or noise_level.lower() == 'high':
+        print("  ✓ DBSCAN (handles arbitrary shapes and noise)")
+    
+    if need_hierarchy or n_samples < 1000:
+        print("  ✓ Hierarchical Clustering (provides dendrogram)")
+    
+    if n_features > 20:
+        print("  ⚠ Consider dimensionality reduction before clustering")
+    
+    if n_samples < 100:
+        print("  ⚠ Small dataset - consider hierarchical or bootstrap validation")
+
+# Test recommendation function
+recommend_clustering_algorithm(n_samples=150, n_features=4, 
+                               cluster_shape='spherical', noise_level='low', 
+                               need_hierarchy=False)
+
+print("\n" + "="*70)
+print("END OF CLUSTERING ANALYSIS")
+print("="*70)

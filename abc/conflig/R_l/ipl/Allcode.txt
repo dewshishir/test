@@ -1,0 +1,167 @@
+1 no solution : 
+import socket
+
+def run_server():
+    # create a socket object
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_ip = "127.0.0.1"
+    port = 8000
+    server.bind((server_ip,port))
+    server.listen(0)
+    print(f"Listen on {server_ip} : {port}")
+    client_socket, client_address = server.accept()
+    print(f"Accepted connection from {client_address[0]}: {client_address[1]}")
+    # Received data from client while true
+    while True:
+        request = client_socket.recv(1024)
+        request = request.decode("UTF-8")   # convert bites into string
+        if request.lower() == 'close':
+            client_socket.send("closed".encode("UTF-8"))
+            break
+    print(f"Received Client Msg : {request}")
+    client_socket.close()
+    print("connection to client closed")
+if __name__ == "__main__":
+    run_server()
+
+----------------------------------------------------------------------------------------
+
+2 no solution : 
+
+import socket
+
+def run_client():
+    try:
+        # Create a socket object
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_ip = "127.0.0.1"
+        port = 8000
+        
+        # Try connecting to the server
+        client.connect((server_ip, port))
+        print(f"Connected to server {server_ip}:{port}")
+        
+        while True:
+            # Send message to the server
+            message = input("Enter message to send (type 'close' to disconnect): ")
+            client.send(message.encode("UTF-8"))  # Convert string to bytes
+            
+            # If the user sends 'close', break out of the loop before receiving a response
+            if message.lower() == "close":
+                break
+            
+            # Receive response from the server
+            response = client.recv(1024)  # Receive up to 1024 bytes
+            response = response.decode("UTF-8")  # Convert bytes to string
+            print(f"Server response: {response}")
+        
+        # Close the connection
+        client.close()
+        print("Disconnected from server")
+    
+    except ConnectionRefusedError:
+        print("No server available to connect to. Please start the server first.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        # Ensure socket is closed if an error occurs
+        try:
+            client.close()
+        except NameError:
+            pass
+
+# Corrected block for script entry point
+if __name__ == "__main__":
+    run_client()
+
+
+------------------------------------------------------------------------------------------------
+
+5 no solution : 
+
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+
+def run(server_class=HTTPServer, handler_class=SimpleHTTPRequestHandler):
+    server_address = ('0.0.0.0', 8000)  # Listen on port 8000
+    httpd = server_class(server_address, handler_class)
+    print("Serving HTTP on port 8000...")
+    httpd.serve_forever()
+
+# if __name__ == '__main__':
+#     run()
+
+run() 
+
+
+6no solution : 
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+
+def run_localhost_server(server_class=HTTPServer, handler_class=SimpleHTTPRequestHandler):
+    server_address = ('127.0.0.1', 8000)  # Serve only on localhost (127.0.0.1)
+    httpd = server_class(server_address, handler_class)
+    print("Serving HTTP on localhost (127.0.0.1) at port 8000...")
+    httpd.serve_forever()
+
+if __name__ == '__main__':
+    run_localhost_server()
+
+# hit on browser: 127.0.0.1:8000 
+
+
+-----------------------------------------------------------------------------
+HTML file : 
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>simple html code</title>
+</head>
+<body>
+    <h2>Simple Http Server</h2>
+
+    <p>
+        <b>Faridpur Engineering College <br></b>
+        Faridpur, Dhaka, Bangladesh
+    </p>
+    <p>This is a simple html code</p>
+</body>
+</html>
+
+
+--------------------------------------------------------------------------------
+
+8 no solution : 
+# Simple DNS Server in Python
+
+def dns_server():
+    # Pre-defined DNS records
+    dns_records = {
+        "example.com": "93.184.216.34",
+        "google.com": "142.250.190.46",
+        "facebook.com": "31.13.71.36",
+        "github.com": "140.82.121.4"
+    }
+
+    print("\nSimple DNS Server")
+    print("Type 'exit' to quit the server.\n")
+
+    while True:
+        # Get domain name input from the user
+        domain = input("Enter a domain name: ").strip()
+
+        if domain.lower() == 'exit':
+            print("Exiting DNS Server. Goodbye!")
+            break
+
+        # Resolve domain name
+        ip_address = dns_records.get(domain)
+        if ip_address:
+            print(f"IP Address for {domain}: {ip_address}\n")
+        else:
+            print(f"Domain {domain} not found in DNS records.\n")
+
+# Run the DNS server function
+dns_server()
+

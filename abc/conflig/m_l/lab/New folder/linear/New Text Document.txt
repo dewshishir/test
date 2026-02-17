@@ -1,0 +1,421 @@
+python
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from scipy import stats
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import warnings
+warnings.filterwarnings('ignore')
+
+# Load and prepare the data
+df = pd.read_csv("/content/Titanic-Dataset.csv")
+
+print("="*60)
+print("REGRESSION ANALYSIS ON TITANIC DATASET")
+print("="*60)
+
+# Data preprocessing for regression
+df_reg = df.copy()
+
+# Handle missing values
+df_reg['Age'].fillna(df_reg['Age'].median(), inplace=True)
+df_reg['Embarked'].fillna(df_reg['Embarked'].mode()[0], inplace=True)
+df_reg['Fare'].fillna(df_reg['Fare'].median(), inplace=True)
+
+# Drop columns that won't be used
+df_reg.drop(['Cabin', 'Ticket', 'Name', 'PassengerId'], axis=1, inplace=True)
+
+# Convert categorical variables
+df_reg = pd.get_dummies(df_reg, columns=['Sex', 'Embarked'], drop_first=True)
+
+print("\nDataset shape after preprocessing:", df_reg.shape)
+print("\nFirst few rows:")
+print(df_reg.head())
+1. Simple Linear Regression
+python
+print("\n" + "="*60)
+print("1. SIMPLE LINEAR REGRESSION")
+print("="*60)
+
+# For simple linear regression, we'll predict Fare using Pclass
+# Pclass is a good predictor for Fare (1st class pays more)
+
+X_simple = df_reg[['Pclass']]  # Independent variable
+y_simple = df_reg['Fare']       # Dependent variable
+
+# Split the data
+X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(
+    X_simple, y_simple, test_size=0.2, random_state=42
+)
+
+# Create and train the model
+simple_lr = LinearRegression()
+simple_lr.fit(X_train_s, y_train_s)
+
+# Make predictions
+y_pred_s = simple_lr.predict(X_test_s)
+
+print(f"\nSimple Linear Regression Results (Predicting Fare using Pclass):")
+print(f"Coefficient: {simple_lr.coef_[0]:.4f}")
+print(f"Intercept: {simple_lr.intercept_:.4f}")
+print(f"\nEquation: Fare = {simple_lr.intercept_:.4f} + ({simple_lr.coef_[0]:.4f} × Pclass)")
+
+# Visualize the regression line
+plt.figure(figsize=(10, 6))
+plt.scatter(X_test_s, y_test_s, color='blue', alpha=0.5, label='Actual Data')
+plt.plot(X_test_s.sort_values(by='Pclass'), 
+         simple_lr.predict(X_test_s.sort_values(by='Pclass')), 
+         color='red', linewidth=2, label='Regression Line')
+plt.xlabel('Pclass')
+plt.ylabel('Fare')
+plt.title('Simple Linear Regression: Fare vs Pclass')
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.show()
+2. Multiple Linear Regression
+python
+print("\n" + "="*60)
+print("2. MULTIPLE LINEAR REGRESSION")
+print("="*60)
+
+# For multiple linear regression, we'll predict Fare using multiple features
+# Define features (X) and target (y)
+# Let's predict Fare (continuous variable)
+feature_columns = ['Pclass', 'Age', 'SibSp', 'Parch', 'Sex_male', 'Embarked_Q', 'Embarked_S']
+X_multi = df_reg[feature_columns]
+y_multi = df_reg['Fare']
+
+# Split the data
+X_train_m, X_test_m, y_train_m, y_test_m = train_test_split(
+    X_multi, y_multi, test_size=0.2, random_state=42
+)
+
+# Create and train the model
+multi_lr = LinearRegression()
+multi_lr.fit(X_train_m, y_train_m)
+
+# Make predictions
+y_pred_m = multi_lr.predict(X_test_m)
+
+print("\nMultiple Linear Regression Results (Predicting Fare):")
+print("\nFeature Coefficients:")
+for feature, coef in zip(feature_columns, multi_lr.coef_):
+    print(f"  {feature}: {coef:.4f}")
+print(f"\nIntercept: {multi_lr.intercept_:.4f}")
+
+# Alternative: Predict Age instead of Fare
+print("\n" + "-"*40)
+print("Alternative Multiple Regression: Predicting Age")
+print("-"*40)
+
+# For predicting Age
+feature_cols_age = ['Pclass', 'SibSp', 'Parch', 'Fare', 'Sex_male', 'Embarked_Q', 'Embarked_S']
+X_age = df_reg[feature_cols_age]
+y_age = df_reg['Age']
+
+X_train_a, X_test_a, y_train_a, y_test_a = train_test_split(
+    X_age, y_age, test_size=0.2, random_state=42
+)
+
+age_lr = LinearRegression()
+age_lr.fit(X_train_a, y_train_a)
+y_pred_a = age_lr.predict(X_test_a)
+
+print("\nFeature Coefficients for Age Prediction:")
+for feature, coef in zip(feature_cols_age, age_lr.coef_):
+    print(f"  {feature}: {coef:.4f}")
+print(f"Intercept: {age_lr.intercept_:.4f}")
+3. Evaluating Model Performance
+python
+print("\n" + "="*60)
+print("3. MODEL PERFORMANCE EVALUATION")
+print("="*60)
+
+def evaluate_model(y_true, y_pred, model_name):
+    """Calculate and display regression metrics"""
+    mae = mean_absolute_error(y_true, y_pred)
+    mse = mean_squared_error(y_true, y_pred)
+    rmse = np.sqrt(mse)
+    r2 = r2_score(y_true, y_pred)
+    
+    print(f"\n{model_name}:")
+    print(f"  Mean Absolute Error (MAE): {mae:.4f}")
+    print(f"  Mean Squared Error (MSE): {mse:.4f}")
+    print(f"  Root Mean Squared Error (RMSE): {rmse:.4f}")
+    print(f"  R² Score: {r2:.4f}")
+    
+    return {'MAE': mae, 'MSE': mse, 'RMSE': rmse, 'R2': r2}
+
+# Evaluate Simple Linear Regression (Fare)
+simple_metrics = evaluate_model(y_test_s, y_pred_s, "Simple Linear Regression (Fare)")
+
+# Evaluate Multiple Linear Regression (Fare)
+multi_metrics = evaluate_model(y_test_m, y_pred_m, "Multiple Linear Regression (Fare)")
+
+# Evaluate Multiple Linear Regression (Age)
+age_metrics = evaluate_model(y_test_a, y_pred_a, "Multiple Linear Regression (Age)")
+
+# Comparison DataFrame
+comparison_df = pd.DataFrame({
+    'Simple LR (Fare)': simple_metrics,
+    'Multiple LR (Fare)': multi_metrics,
+    'Multiple LR (Age)': age_metrics
+})
+
+print("\n" + "="*60)
+print("MODEL COMPARISON SUMMARY")
+print("="*60)
+print(comparison_df.round(4))
+
+# Visual comparison
+metrics_to_plot = ['MAE', 'RMSE', 'R2']
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+for i, metric in enumerate(metrics_to_plot):
+    values = [simple_metrics[metric], multi_metrics[metric], age_metrics[metric]]
+    bars = axes[i].bar(['Simple LR\n(Fare)', 'Multiple LR\n(Fare)', 'Multiple LR\n(Age)'], values)
+    axes[i].set_title(f'{metric} Comparison')
+    axes[i].set_ylabel(metric)
+    
+    # Add value labels on bars
+    for bar, val in zip(bars, values):
+        axes[i].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01, 
+                    f'{val:.3f}', ha='center', va='bottom', fontsize=9)
+
+plt.tight_layout()
+plt.show()
+4. Visualizing Residuals
+python
+print("\n" + "="*60)
+print("4. RESIDUALS ANALYSIS")
+print("="*60)
+
+def plot_residuals(y_true, y_pred, model_name):
+    """Plot residuals to check model assumptions"""
+    residuals = y_true - y_pred
+    
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig.suptitle(f'Residuals Analysis - {model_name}', fontsize=14)
+    
+    # 1. Residuals vs Predicted values
+    axes[0, 0].scatter(y_pred, residuals, alpha=0.5)
+    axes[0, 0].axhline(y=0, color='red', linestyle='--', linewidth=2)
+    axes[0, 0].set_xlabel('Predicted Values')
+    axes[0, 0].set_ylabel('Residuals')
+    axes[0, 0].set_title('Residuals vs Predicted')
+    axes[0, 0].grid(True, alpha=0.3)
+    
+    # 2. Histogram of residuals
+    axes[0, 1].hist(residuals, bins=30, edgecolor='black', alpha=0.7)
+    axes[0, 1].axvline(x=0, color='red', linestyle='--', linewidth=2)
+    axes[0, 1].set_xlabel('Residuals')
+    axes[0, 1].set_ylabel('Frequency')
+    axes[0, 1].set_title('Distribution of Residuals')
+    axes[0, 1].grid(True, alpha=0.3)
+    
+    # 3. Q-Q plot for normality check
+    stats.probplot(residuals, dist="norm", plot=axes[1, 0])
+    axes[1, 0].set_title('Q-Q Plot')
+    axes[1, 0].grid(True, alpha=0.3)
+    
+    # 4. Actual vs Predicted
+    axes[1, 1].scatter(y_true, y_pred, alpha=0.5)
+    
+    # Add perfect prediction line
+    min_val = min(min(y_true), min(y_pred))
+    max_val = max(max(y_true), max(y_pred))
+    axes[1, 1].plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, label='Perfect Prediction')
+    
+    axes[1, 1].set_xlabel('Actual Values')
+    axes[1, 1].set_ylabel('Predicted Values')
+    axes[1, 1].set_title('Actual vs Predicted')
+    axes[1, 1].legend()
+    axes[1, 1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Statistical tests for residuals
+    print(f"\nResiduals Statistics - {model_name}:")
+    print(f"  Mean of residuals: {np.mean(residuals):.6f}")
+    print(f"  Std of residuals: {np.std(residuals):.4f}")
+    print(f"  Skewness: {stats.skew(residuals):.4f}")
+    print(f"  Kurtosis: {stats.kurtosis(residuals):.4f}")
+    
+    # Shapiro-Wilk test for normality (for small samples, but we'll do it anyway)
+    if len(residuals) < 5000:
+        shapiro_stat, shapiro_p = stats.shapiro(residuals[:5000])  # Limit to 5000 for test
+        print(f"  Shapiro-Wilk test p-value: {shapiro_p:.4f}")
+        if shapiro_p > 0.05:
+            print("  ✓ Residuals appear normally distributed (p > 0.05)")
+        else:
+            print("  ✗ Residuals deviate from normal distribution (p < 0.05)")
+
+# Plot residuals for each model
+plot_residuals(y_test_m, y_pred_m, "Multiple Linear Regression (Fare)")
+plot_residuals(y_test_a, y_pred_a, "Multiple Linear Regression (Age)")
+5. Predicting New Data
+python
+print("\n" + "="*60)
+print("5. PREDICTING NEW DATA")
+print("="*60)
+
+# Create sample new passengers for prediction
+new_passengers = pd.DataFrame({
+    'Pclass': [1, 2, 3, 1, 3],
+    'Age': [30, 25, 40, 55, 22],
+    'SibSp': [0, 1, 0, 1, 0],
+    'Parch': [0, 0, 2, 0, 1],
+    'Sex_male': [0, 1, 1, 0, 1],  # 0=female, 1=male
+    'Embarked_Q': [0, 0, 1, 0, 0],
+    'Embarked_S': [1, 1, 0, 1, 1]  # C, Q, S are dummy encoded
+})
+
+print("\nNew Passenger Data for Prediction:")
+print(new_passengers)
+
+# Predict Fare for new passengers using multiple regression model
+predicted_fares = multi_lr.predict(new_passengers)
+
+# Predict Age for new passengers using age regression model
+# Note: For age prediction, we need to select the correct features
+new_passengers_age = new_passengers[feature_cols_age]
+predicted_ages = age_lr.predict(new_passengers_age)
+
+# Create results dataframe
+results_df = pd.DataFrame({
+    'Passenger': [f'P{i+1}' for i in range(len(new_passengers))],
+    'Pclass': new_passengers['Pclass'],
+    'Sex': ['Female' if s == 0 else 'Male' for s in new_passengers['Sex_male']],
+    'Age_Input': new_passengers['Age'],
+    'Predicted_Fare': predicted_fares,
+    'Predicted_Age_Alt': predicted_ages
+})
+
+print("\n" + "="*60)
+print("PREDICTION RESULTS FOR NEW PASSENGERS")
+print("="*60)
+print(results_df.round(2))
+
+# Individual predictions with interpretation
+print("\n" + "-"*40)
+print("Detailed Predictions:")
+print("-"*40)
+
+for i, row in results_df.iterrows():
+    print(f"\nPassenger {row['Passenger']}: {row['Sex']}, Pclass {int(row['Pclass'])}")
+    print(f"  → Predicted Fare: ${row['Predicted_Fare']:.2f}")
+    print(f"  → Predicted Age (alternative model): {row['Predicted_Age_Alt']:.1f} years")
+    
+    # Add interpretation
+    if row['Predicted_Fare'] > 50:
+        fare_note = "(High fare - likely 1st class luxury)"
+    elif row['Predicted_Fare'] > 20:
+        fare_note = "(Medium fare)"
+    else:
+        fare_note = "(Low fare - economy)"
+    print(f"    {fare_note}")
+
+# Visualize predictions
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+# Fare predictions
+axes[0].bar(results_df['Passenger'], results_df['Predicted_Fare'], color='skyblue', edgecolor='black')
+axes[0].set_xlabel('Passenger')
+axes[0].set_ylabel('Predicted Fare ($)')
+axes[0].set_title('Fare Predictions for New Passengers')
+axes[0].grid(True, alpha=0.3)
+
+# Age predictions
+axes[1].bar(results_df['Passenger'], results_df['Predicted_Age_Alt'], color='lightgreen', edgecolor='black')
+axes[1].set_xlabel('Passenger')
+axes[1].set_ylabel('Predicted Age (years)')
+axes[1].set_title('Age Predictions for New Passengers')
+axes[1].grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Function to predict for a custom passenger
+def predict_passenger(pclass, age, sibsp, parch, sex, embarked):
+    """
+    Predict fare and age for a custom passenger
+    
+    Parameters:
+    pclass: 1, 2, or 3
+    age: age in years
+    sibsp: number of siblings/spouses aboard
+    parch: number of parents/children aboard
+    sex: 'male' or 'female'
+    embarked: 'C', 'Q', or 'S'
+    """
+    
+    # Create feature vector
+    passenger = pd.DataFrame({
+        'Pclass': [pclass],
+        'Age': [age],
+        'SibSp': [sibsp],
+        'Parch': [parch],
+        'Sex_male': [1 if sex.lower() == 'male' else 0],
+        'Embarked_Q': [1 if embarked.upper() == 'Q' else 0],
+        'Embarked_S': [1 if embarked.upper() == 'S' else 0]
+    })
+    
+    # Predict
+    fare_pred = multi_lr.predict(passenger)[0]
+    
+    # For age prediction, we need the age model features
+    passenger_age = passenger[feature_cols_age]
+    age_pred = age_lr.predict(passenger_age)[0]
+    
+    return fare_pred, age_pred
+
+# Test the custom prediction function
+print("\n" + "="*60)
+print("CUSTOM PASSENGER PREDICTION")
+print("="*60)
+
+# Example: First class female passenger
+fare, age = predict_passenger(pclass=1, age=35, sibsp=0, parch=0, sex='female', embarked='S')
+print(f"\nFirst Class Female Passenger (age 35, embarked Southampton):")
+print(f"  Predicted Fare: ${fare:.2f}")
+print(f"  Predicted Age (alternative): {age:.1f} years")
+
+# Example: Third class male passenger with family
+fare, age = predict_passenger(pclass=3, age=28, sibsp=1, parch=2, sex='male', embarked='Q')
+print(f"\nThird Class Male Passenger with family (age 28, embarked Queenstown):")
+print(f"  Predicted Fare: ${fare:.2f}")
+print(f"  Predicted Age (alternative): {age:.1f} years")
+Summary Report
+python
+print("\n" + "="*60)
+print("REGRESSION ANALYSIS SUMMARY")
+print("="*60)
+
+print("""
+Key Findings:
+------------
+1. Simple Linear Regression shows the relationship between Pclass and Fare
+   - Higher class (lower Pclass number) = Higher fare
+   
+2. Multiple Linear Regression incorporates multiple features
+   - More accurate predictions than simple regression
+   - R² score indicates how well features explain the variance
+   
+3. Model Performance:
+   - MAE gives average prediction error in original units
+   - RMSE penalizes large errors more heavily
+   - R² shows proportion of variance explained by the model
+   
+4. Residual Analysis helps validate assumptions:
+   - Residuals should be randomly distributed around zero
+   - No clear patterns in residuals vs predicted plot
+   - Approximately normal distribution of residuals
+   
+5. New predictions can be made for any passenger
+   - Useful for estimating fares for hypothetical passengers
+   - Can help understand pricing patterns on Titanic
+""")

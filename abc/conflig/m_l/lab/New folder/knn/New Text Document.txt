@@ -1,0 +1,721 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import classification_report, confusion_matrix, mean_squared_error, r2_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.datasets import load_iris, load_diabetes, make_classification, make_moons, make_circles
+from matplotlib.colors import ListedColormap
+import warnings
+warnings.filterwarnings('ignore')
+
+print("="*70)
+print("K-NEAREST NEIGHBORS (KNN) ANALYSIS")
+print("="*70)
+1. Implementing KNN for Classification
+python
+print("\n" + "="*70)
+print("1. KNN FOR CLASSIFICATION - IRIS DATASET")
+print("="*70)
+
+# Load Iris dataset
+iris = load_iris()
+X = iris.data
+y = iris.target
+feature_names = iris.feature_names
+target_names = iris.target_names
+
+print(f"Dataset Shape: {X.shape}")
+print(f"Number of classes: {len(np.unique(y))}")
+print(f"Class names: {target_names}")
+print(f"Feature names: {feature_names}")
+
+# Split the data
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
+)
+
+# Scale the features (important for KNN)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+print(f"\nTraining set size: {X_train.shape[0]} samples")
+print(f"Test set size: {X_test.shape[0]} samples")
+
+# Create and train KNN classifier (default K=5)
+knn = KNeighborsClassifier(n_neighbors=5)
+knn.fit(X_train_scaled, y_train)
+
+# Make predictions
+y_pred = knn.predict(X_test_scaled)
+y_pred_proba = knn.predict_proba(X_test_scaled)
+
+# Calculate accuracy
+accuracy = accuracy_score(y_test, y_pred)
+print(f"\nKNN (K=5) Accuracy: {accuracy:.4f}")
+
+# Detailed classification report
+print("\nClassification Report:")
+print("="*50)
+print(classification_report(y_test, y_pred, target_names=target_names))
+
+# Confusion Matrix
+cm = confusion_matrix(y_test, y_pred)
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=target_names, yticklabels=target_names)
+plt.title('Confusion Matrix - KNN Classifier (K=5)')
+plt.ylabel('Actual')
+plt.xlabel('Predicted')
+plt.show()
+
+# Cross-validation scores
+cv_scores = cross_val_score(knn, X_train_scaled, y_train, cv=5)
+print(f"\nCross-validation scores: {cv_scores}")
+print(f"Average CV Score: {cv_scores.mean():.4f} (+/- {cv_scores.std()*2:.4f})")
+2. Choosing Different K Values
+python
+print("\n" + "="*70)
+print("2. EFFECT OF DIFFERENT K VALUES")
+print("="*70)
+
+# Test different K values
+k_values = list(range(1, 31, 2))  # Odd numbers from 1 to 29
+train_scores = []
+test_scores = []
+cv_scores_mean = []
+cv_scores_std = []
+
+for k in k_values:
+    knn_k = KNeighborsClassifier(n_neighbors=k)
+    knn_k.fit(X_train_scaled, y_train)
+    
+    # Training and test accuracy
+    train_scores.append(knn_k.score(X_train_scaled, y_train))
+    test_scores.append(knn_k.score(X_test_scaled, y_test))
+    
+    # Cross-validation scores
+    cv_scores = cross_val_score(knn_k, X_train_scaled, y_train, cv=5)
+    cv_scores_mean.append(cv_scores.mean())
+    cv_scores_std.append(cv_scores.std())
+
+# Find best K
+best_k_idx = np.argmax(test_scores)
+best_k = k_values[best_k_idx]
+best_accuracy = test_scores[best_k_idx]
+
+print(f"\nBest K value: {best_k} (Accuracy: {best_accuracy:.4f})")
+
+# Visualize K value effect
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# Accuracy vs K
+ax1 = axes[0, 0]
+ax1.plot(k_values, train_scores, 'bo-', label='Training Accuracy', linewidth=2)
+ax1.plot(k_values, test_scores, 'ro-', label='Testing Accuracy', linewidth=2)
+ax1.axvline(x=best_k, color='green', linestyle='--', label=f'Best K={best_k}')
+ax1.set_xlabel('K Value')
+ax1.set_ylabel('Accuracy')
+ax1.set_title('Accuracy vs K Value')
+ax1.legend()
+ax1.grid(True, alpha=0.3)
+
+# Cross-validation scores
+ax2 = axes[0, 1]
+ax2.errorbar(k_values, cv_scores_mean, yerr=cv_scores_std, fmt='go-', 
+             capsize=5, linewidth=2)
+ax2.axvline(x=best_k, color='green', linestyle='--', label=f'Best K={best_k}')
+ax2.set_xlabel('K Value')
+ax2.set_ylabel('CV Accuracy')
+ax2.set_title('Cross-validation Scores vs K Value')
+ax2.legend()
+ax2.grid(True, alpha=0.3)
+
+# Overfitting analysis
+ax3 = axes[1, 0]
+overfitting_gap = np.array(train_scores) - np.array(test_scores)
+ax3.plot(k_values, overfitting_gap, 'mo-', linewidth=2)
+ax3.axhline(y=0, color='black', linestyle='-', alpha=0.3)
+ax3.axvline(x=best_k, color='green', linestyle='--', label=f'Best K={best_k}')
+ax3.set_xlabel('K Value')
+ax3.set_ylabel('Train-Test Gap')
+ax3.set_title('Overfitting Analysis (Train-Test Gap)')
+ax3.legend()
+ax3.grid(True, alpha=0.3)
+
+# Bias-Variance tradeoff
+ax4 = axes[1, 1]
+ax4.plot(k_values, 1 - np.array(train_scores), 'bo-', label='Training Error', linewidth=2)
+ax4.plot(k_values, 1 - np.array(test_scores), 'ro-', label='Testing Error', linewidth=2)
+ax4.axvline(x=best_k, color='green', linestyle='--', label=f'Best K={best_k}')
+ax4.set_xlabel('K Value')
+ax4.set_ylabel('Error Rate')
+ax4.set_title('Bias-Variance Tradeoff')
+ax4.legend()
+ax4.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Detailed analysis for different K ranges
+print("\nDetailed Analysis for Different K Ranges:")
+print("-"*50)
+print(f"{'K':<5} {'Train Acc':<10} {'Test Acc':<10} {'CV Mean':<10} {'CV Std':<10}")
+print("-"*50)
+for i, k in enumerate(k_values):
+    print(f"{k:<5} {train_scores[i]:<10.4f} {test_scores[i]:<10.4f} "
+          f"{cv_scores_mean[i]:<10.4f} {cv_scores_std[i]:<10.4f}")
+3. Distance Metrics in KNN
+python
+print("\n" + "="*70)
+print("3. COMPARING DIFFERENT DISTANCE METRICS")
+print("="*70)
+
+# Define distance metrics to test
+metrics = ['euclidean', 'manhattan', 'chebyshev', 'minkowski']
+metric_results = {}
+
+# Also test different p values for Minkowski
+p_values = [1, 2, 3, 4]
+
+for metric in metrics:
+    print(f"\n{'-'*50}")
+    print(f"Metric: {metric.upper()}")
+    print(f"{'-'*50}")
+    
+    if metric == 'minkowski':
+        # Test different p values for Minkowski
+        for p in p_values:
+            knn_m = KNeighborsClassifier(n_neighbors=best_k, metric=metric, p=p)
+            knn_m.fit(X_train_scaled, y_train)
+            
+            y_pred = knn_m.predict(X_test_scaled)
+            accuracy = accuracy_score(y_test, y_pred)
+            
+            metric_results[f"{metric}(p={p})"] = {
+                'accuracy': accuracy,
+                'train_acc': knn_m.score(X_train_scaled, y_train),
+                'test_acc': accuracy
+            }
+            
+            print(f"  p={p}: Accuracy={accuracy:.4f}")
+    else:
+        knn_m = KNeighborsClassifier(n_neighbors=best_k, metric=metric)
+        knn_m.fit(X_train_scaled, y_train)
+        
+        y_pred = knn_m.predict(X_test_scaled)
+        accuracy = accuracy_score(y_test, y_pred)
+        
+        metric_results[metric] = {
+            'accuracy': accuracy,
+            'train_acc': knn_m.score(X_train_scaled, y_train),
+            'test_acc': accuracy
+        }
+        
+        print(f"  Accuracy={accuracy:.4f}")
+
+# Visualize metric comparison
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+# Accuracy comparison
+ax1 = axes[0]
+metrics_list = list(metric_results.keys())
+accuracies = [metric_results[m]['accuracy'] for m in metrics_list]
+colors = ['lightgreen' if a == max(accuracies) else 'lightcoral' for a in accuracies]
+bars = ax1.bar(range(len(metrics_list)), accuracies, color=colors, edgecolor='black')
+ax1.set_xlabel('Distance Metric')
+ax1.set_ylabel('Accuracy')
+ax1.set_title('Accuracy by Distance Metric')
+ax1.set_xticks(range(len(metrics_list)))
+ax1.set_xticklabels(metrics_list, rotation=45)
+ax1.grid(True, alpha=0.3)
+
+# Add value labels
+for bar, acc in zip(bars, accuracies):
+    ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.005, 
+             f'{acc:.4f}', ha='center', va='bottom', fontsize=9)
+
+# Train vs Test accuracy for each metric
+ax2 = axes[1]
+x = np.arange(len(metrics_list))
+width = 0.35
+
+train_accs = [metric_results[m]['train_acc'] for m in metrics_list]
+test_accs = [metric_results[m]['test_acc'] for m in metrics_list]
+
+ax2.bar(x - width/2, train_accs, width, label='Training', color='blue', alpha=0.7)
+ax2.bar(x + width/2, test_accs, width, label='Testing', color='red', alpha=0.7)
+ax2.set_xlabel('Distance Metric')
+ax2.set_ylabel('Accuracy')
+ax2.set_title('Training vs Testing Accuracy by Metric')
+ax2.set_xticks(x)
+ax2.set_xticklabels(metrics_list, rotation=45)
+ax2.legend()
+ax2.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Best metric
+best_metric = max(metric_results, key=lambda m: metric_results[m]['accuracy'])
+print(f"\nBest Distance Metric: {best_metric} (Accuracy: {metric_results[best_metric]['accuracy']:.4f})")
+4. KNN for Regression
+python
+print("\n" + "="*70)
+print("4. KNN FOR REGRESSION")
+print("="*70)
+
+# Load diabetes dataset for regression
+diabetes = load_diabetes()
+X_reg = diabetes.data
+y_reg = diabetes.target
+reg_feature_names = diabetes.feature_names
+
+print(f"Dataset Shape: {X_reg.shape}")
+print(f"Feature names: {reg_feature_names}")
+print(f"Target range: {y_reg.min():.2f} to {y_reg.max():.2f}")
+
+# Split the data
+X_train_reg, X_test_reg, y_train_reg, y_test_reg = train_test_split(
+    X_reg, y_reg, test_size=0.2, random_state=42
+)
+
+# Scale the features
+scaler_reg = StandardScaler()
+X_train_reg_scaled = scaler_reg.fit_transform(X_train_reg)
+X_test_reg_scaled = scaler_reg.transform(X_test_reg)
+
+# Test different K values for regression
+k_values_reg = [3, 5, 7, 9, 11, 13, 15]
+reg_results = []
+
+for k in k_values_reg:
+    # Create and train KNN regressor
+    knn_reg = KNeighborsRegressor(n_neighbors=k)
+    knn_reg.fit(X_train_reg_scaled, y_train_reg)
+    
+    # Make predictions
+    y_pred_reg = knn_reg.predict(X_test_reg_scaled)
+    
+    # Calculate metrics
+    mse = mean_squared_error(y_test_reg, y_pred_reg)
+    rmse = np.sqrt(mse)
+    r2 = r2_score(y_test_reg, y_pred_reg)
+    
+    reg_results.append({
+        'k': k,
+        'mse': mse,
+        'rmse': rmse,
+        'r2': r2,
+        'predictions': y_pred_reg
+    })
+    
+    print(f"\nK={k}:")
+    print(f"  MSE: {mse:.4f}")
+    print(f"  RMSE: {rmse:.4f}")
+    print(f"  R²: {r2:.4f}")
+
+# Find best K for regression
+best_reg_idx = np.argmax([r['r2'] for r in reg_results])
+best_k_reg = reg_results[best_reg_idx]['k']
+best_r2 = reg_results[best_reg_idx]['r2']
+
+print(f"\nBest K for Regression: {best_k_reg} (R²: {best_r2:.4f})")
+
+# Visualize regression results
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# R² vs K
+ax1 = axes[0, 0]
+r2_values = [r['r2'] for r in reg_results]
+ax1.plot(k_values_reg, r2_values, 'bo-', linewidth=2)
+ax1.plot(best_k_reg, best_r2, 'ro', markersize=10, label=f'Best K={best_k_reg}')
+ax1.set_xlabel('K Value')
+ax1.set_ylabel('R² Score')
+ax1.set_title('R² Score vs K Value')
+ax1.legend()
+ax1.grid(True, alpha=0.3)
+
+# RMSE vs K
+ax2 = axes[0, 1]
+rmse_values = [r['rmse'] for r in reg_results]
+ax2.plot(k_values_reg, rmse_values, 'go-', linewidth=2)
+ax2.set_xlabel('K Value')
+ax2.set_ylabel('RMSE')
+ax2.set_title('RMSE vs K Value')
+ax2.grid(True, alpha=0.3)
+
+# Actual vs Predicted (for best K)
+ax3 = axes[1, 0]
+best_model = KNeighborsRegressor(n_neighbors=best_k_reg)
+best_model.fit(X_train_reg_scaled, y_train_reg)
+y_pred_best = best_model.predict(X_test_reg_scaled)
+
+ax3.scatter(y_test_reg, y_pred_best, alpha=0.6, edgecolors='black', linewidth=0.5)
+ax3.plot([y_test_reg.min(), y_test_reg.max()], 
+         [y_test_reg.min(), y_test_reg.max()], 'r--', lw=2)
+ax3.set_xlabel('Actual Values')
+ax3.set_ylabel('Predicted Values')
+ax3.set_title(f'Actual vs Predicted (K={best_k_reg}, R²={best_r2:.4f})')
+ax3.grid(True, alpha=0.3)
+
+# Residuals
+ax4 = axes[1, 1]
+residuals = y_test_reg - y_pred_best
+ax4.scatter(y_pred_best, residuals, alpha=0.6, edgecolors='black', linewidth=0.5)
+ax4.axhline(y=0, color='r', linestyle='--', lw=2)
+ax4.set_xlabel('Predicted Values')
+ax4.set_ylabel('Residuals')
+ax4.set_title('Residual Plot')
+ax4.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Cross-validation for regression
+cv_scores_reg = cross_val_score(best_model, X_train_reg_scaled, y_train_reg, 
+                                cv=5, scoring='r2')
+print(f"\nCross-validation R² scores: {cv_scores_reg}")
+print(f"Average CV R²: {cv_scores_reg.mean():.4f} (+/- {cv_scores_reg.std()*2:.4f})")
+5. Visualizing KNN Decision Boundaries
+python
+print("\n" + "="*70)
+print("5. VISUALIZING KNN DECISION BOUNDARIES")
+print("="*70)
+
+def plot_knn_decision_boundary(X, y, k_values, title_prefix, dataset_name):
+    """
+    Plot decision boundaries for different K values
+    """
+    n_rows = 2
+    n_cols = 3
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(18, 10))
+    axes = axes.ravel()
+    
+    # Create mesh
+    h = 0.02
+    x_min, x_max = X[:, 0].min() - 0.5, X[:, 0].max() + 0.5
+    y_min, y_max = X[:, 1].min() - 0.5, X[:, 1].max() + 0.5
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                         np.arange(y_min, y_max, h))
+    
+    # Create colormap
+    cmap_light = ListedColormap(['#FFAAAA', '#AAFFAA', '#AAAAFF'])
+    cmap_bold = ListedColormap(['#FF0000', '#00FF00', '#0000FF'])
+    
+    for idx, k in enumerate(k_values):
+        if idx >= len(axes):
+            break
+            
+        # Train KNN
+        knn = KNeighborsClassifier(n_neighbors=k)
+        knn.fit(X, y)
+        
+        # Predict on mesh
+        Z = knn.predict(np.c_[xx.ravel(), yy.ravel()])
+        Z = Z.reshape(xx.shape)
+        
+        # Plot
+        axes[idx].contourf(xx, yy, Z, cmap=cmap_light, alpha=0.8)
+        axes[idx].contour(xx, yy, Z, colors='black', linewidths=0.5, alpha=0.5)
+        
+        # Plot data points
+        scatter = axes[idx].scatter(X[:, 0], X[:, 1], c=y, cmap=cmap_bold, 
+                                   edgecolors='black', linewidth=1, s=50)
+        
+        axes[idx].set_xlabel('Feature 1')
+        axes[idx].set_ylabel('Feature 2')
+        axes[idx].set_title(f'{title_prefix} - K={k}')
+        axes[idx].grid(True, alpha=0.3)
+    
+    # Hide empty subplots
+    for idx in range(len(k_values), len(axes)):
+        axes[idx].set_visible(False)
+    
+    plt.suptitle(f'KNN Decision Boundaries - {dataset_name}', fontsize=14, y=1.02)
+    plt.tight_layout()
+    plt.show()
+
+# 5.1 Linear separable dataset
+print("\n5.1 Linear Separable Dataset:")
+print("-"*50)
+
+X_linear, y_linear = make_classification(
+    n_samples=200, n_features=2, n_redundant=0, n_informative=2,
+    n_clusters_per_class=1, n_classes=2, random_state=42
+)
+
+# Scale the data
+scaler_2d = StandardScaler()
+X_linear_scaled = scaler_2d.fit_transform(X_linear)
+
+k_values_test = [1, 3, 5, 7, 11, 15]
+plot_knn_decision_boundary(X_linear_scaled, y_linear, k_values_test, 
+                          'Linear Data', 'Linear Separable Dataset')
+
+# 5.2 Moon dataset (non-linear)
+print("\n5.2 Moon Dataset (Non-linear):")
+print("-"*50)
+
+X_moons, y_moons = make_moons(n_samples=200, noise=0.2, random_state=42)
+X_moons_scaled = scaler_2d.fit_transform(X_moons)
+
+plot_knn_decision_boundary(X_moons_scaled, y_moons, k_values_test, 
+                          'Moon Data', 'Moon Dataset')
+
+# 5.3 Circle dataset (non-linear concentric)
+print("\n5.3 Circle Dataset (Concentric):")
+print("-"*50)
+
+X_circles, y_circles = make_circles(n_samples=200, noise=0.1, factor=0.3, random_state=42)
+X_circles_scaled = scaler_2d.fit_transform(X_circles)
+
+plot_knn_decision_boundary(X_circles_scaled, y_circles, k_values_test, 
+                          'Circle Data', 'Circle Dataset')
+
+# 5.4 Multi-class dataset
+print("\n5.4 Multi-class Dataset:")
+print("-"*50)
+
+X_multi, y_multi = make_classification(
+    n_samples=300, n_features=2, n_redundant=0, n_informative=2,
+    n_classes=3, n_clusters_per_class=1, random_state=42
+)
+X_multi_scaled = scaler_2d.fit_transform(X_multi)
+
+plot_knn_decision_boundary(X_multi_scaled, y_multi, k_values_test[:3], 
+                          'Multi-class Data', 'Multi-class Dataset')
+
+# 5.5 Effect of different distance metrics on decision boundaries
+print("\n5.5 Effect of Distance Metrics on Decision Boundaries:")
+print("-"*50)
+
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+metrics_2d = ['euclidean', 'manhattan', 'chebyshev', 'minkowski']
+
+# Use moon dataset for this comparison
+for idx, metric in enumerate(metrics_2d):
+    ax = axes[idx // 2, idx % 2]
+    
+    # Train KNN with different metric
+    if metric == 'minkowski':
+        knn = KNeighborsClassifier(n_neighbors=5, metric=metric, p=3)
+    else:
+        knn = KNeighborsClassifier(n_neighbors=5, metric=metric)
+    
+    knn.fit(X_moons_scaled, y_moons)
+    
+    # Create mesh
+    h = 0.02
+    x_min, x_max = X_moons_scaled[:, 0].min() - 0.5, X_moons_scaled[:, 0].max() + 0.5
+    y_min, y_max = X_moons_scaled[:, 1].min() - 0.5, X_moons_scaled[:, 1].max() + 0.5
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                         np.arange(y_min, y_max, h))
+    
+    Z = knn.predict(np.c_[xx.ravel(), yy.ravel()])
+    Z = Z.reshape(xx.shape)
+    
+    ax.contourf(xx, yy, Z, alpha=0.3, cmap='RdYlBu')
+    ax.contour(xx, yy, Z, colors='black', linewidths=0.5, alpha=0.5)
+    
+    scatter = ax.scatter(X_moons_scaled[:, 0], X_moons_scaled[:, 1], 
+                        c=y_moons, cmap='RdYlBu', edgecolors='black', 
+                        linewidth=1, s=50)
+    
+    ax.set_xlabel('Feature 1')
+    ax.set_ylabel('Feature 2')
+    ax.set_title(f'Distance Metric: {metric.upper()}')
+    ax.grid(True, alpha=0.3)
+
+plt.suptitle('Effect of Distance Metrics on Decision Boundaries', fontsize=14)
+plt.tight_layout()
+plt.show()
+
+# 5.6 Nearest neighbors visualization
+print("\n5.6 Nearest Neighbors Visualization:")
+print("-"*50)
+
+# Select a query point
+query_point = X_moons_scaled[0].reshape(1, -1)
+true_label = y_moons[0]
+
+# Find k nearest neighbors
+knn_viz = KNeighborsClassifier(n_neighbors=5)
+knn_viz.fit(X_moons_scaled, y_moons)
+distances, indices = knn_viz.kneighbors(query_point)
+
+plt.figure(figsize=(10, 8))
+
+# Plot all data points
+plt.scatter(X_moons_scaled[:, 0], X_moons_scaled[:, 1], 
+           c=y_moons, cmap='RdYlBu', edgecolors='black', 
+           linewidth=1, s=100, alpha=0.6, label='Data Points')
+
+# Plot query point
+plt.scatter(query_point[0, 0], query_point[0, 1], 
+           c='green', s=200, marker='*', edgecolors='black', 
+           linewidth=2, label='Query Point')
+
+# Plot nearest neighbors
+neighbors = X_moons_scaled[indices[0]]
+plt.scatter(neighbors[:, 0], neighbors[:, 1], 
+           c='red', s=150, marker='s', edgecolors='black', 
+           linewidth=2, label=f'{len(indices[0])} Nearest Neighbors')
+
+# Draw lines to nearest neighbors
+for i, neighbor in enumerate(neighbors):
+    plt.plot([query_point[0, 0], neighbor[0]], 
+             [query_point[0, 1], neighbor[1]], 
+             'k--', alpha=0.5, linewidth=1)
+
+plt.xlabel('Feature 1')
+plt.ylabel('Feature 2')
+plt.title(f'KNN: Query Point and its {len(indices[0])} Nearest Neighbors')
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.show()
+
+print(f"\nQuery Point Label: {target_names[true_label] if true_label < 3 else 'Unknown'}")
+print(f"Nearest Neighbor Labels: {[target_names[y_moons[i]] for i in indices[0]]}")
+print(f"Predicted Label: {target_names[knn_viz.predict(query_point)[0]]}")
+Summary and Practical Applications
+python
+print("\n" + "="*70)
+print("KNN - SUMMARY AND PRACTICAL APPLICATIONS")
+print("="*70)
+
+print("""
+Key Characteristics of KNN:
+--------------------------
+1. Lazy Learning: No explicit training phase, stores all training data
+2. Instance-based: Makes predictions based on similarity to training examples
+3. Non-parametric: No assumptions about data distribution
+4. Versatile: Can be used for both classification and regression
+
+Effect of K Value:
+----------------
+• Small K (e.g., K=1): 
+  - Low bias, high variance (overfitting)
+  - Decision boundaries are complex and noisy
+  
+• Large K (e.g., K=15+):
+  - High bias, low variance (underfitting)
+  - Decision boundaries become smoother
+  
+• Optimal K:
+  - Balances bias and variance
+  - Typically found through cross-validation
+  - Usually odd number to avoid ties
+
+Distance Metrics Comparison:
+--------------------------
+• Euclidean (L2): Most common, works well for continuous features
+• Manhattan (L1): More robust to outliers, good for high dimensions
+• Chebyshev (L∞): Maximum coordinate difference
+• Minkowski: Generalization of L1 and L2
+
+Advantages of KNN:
+----------------
+✓ Simple and intuitive to understand
+✓ No training phase (lazy learning)
+✓ Naturally handles multi-class problems
+✓ Can adapt to new data easily
+✓ Works well with non-linear data
+
+Limitations:
+----------
+✗ Computationally expensive for large datasets
+✗ Sensitive to irrelevant features
+✗ Requires feature scaling
+✗ Memory intensive (stores all training data)
+✗ Curse of dimensionality in high dimensions
+
+Practical Guidelines:
+-------------------
+1. Always scale features before applying KNN
+2. Use odd K values to avoid ties in classification
+3. Choose K through cross-validation
+4. Consider distance weighting for imbalanced data
+5. For high-dimensional data, consider dimensionality reduction first
+
+When to Use KNN:
+--------------
+✓ Small to medium-sized datasets
+✓ When decision boundaries are expected to be irregular
+✓ When interpretability is not the main concern
+✓ For recommendation systems (similar users/items)
+✓ When you need a quick, baseline model
+""")
+
+# Practical prediction function
+def knn_predict_with_info(features, model, scaler, k, X_train, y_train, feature_names=None):
+    """
+    Make predictions with additional information about nearest neighbors
+    """
+    # Scale features
+    features_scaled = scaler.transform([features])
+    
+    # Get prediction and probabilities
+    prediction = model.predict(features_scaled)[0]
+    probabilities = model.predict_proba(features_scaled)[0]
+    
+    # Find nearest neighbors
+    distances, indices = model.kneighbors(features_scaled)
+    
+    # Get neighbor information
+    neighbors_info = []
+    for i, (dist, idx) in enumerate(zip(distances[0], indices[0])):
+        neighbors_info.append({
+            'index': idx,
+            'distance': dist,
+            'true_label': y_train[idx],
+            'class_name': target_names[y_train[idx]] if y_train[idx] < 3 else 'Unknown'
+        })
+    
+    result = {
+        'prediction': prediction,
+        'class_name': target_names[prediction] if prediction < 3 else 'Unknown',
+        'confidence': probabilities[prediction],
+        'probabilities': dict(zip(target_names, probabilities)),
+        'neighbors': neighbors_info,
+        'avg_neighbor_distance': np.mean(distances[0])
+    }
+    
+    return result
+
+# Test the prediction function
+print("\n" + "-"*50)
+print("PRACTICAL PREDICTION WITH NEIGHBOR ANALYSIS")
+print("-"*50)
+
+# Use best K model
+best_knn = KNeighborsClassifier(n_neighbors=best_k)
+best_knn.fit(X_train_scaled, y_train)
+
+test_samples = [
+    [5.1, 3.5, 1.4, 0.2],  # Setosa-like
+    [6.5, 3.0, 5.2, 2.0],  # Virginica-like
+    [5.9, 3.0, 4.2, 1.5],  # Versicolor-like
+]
+
+for i, sample in enumerate(test_samples):
+    result = knn_predict_with_info(sample, best_knn, scaler, best_k, 
+                                   X_train_scaled, y_train, feature_names)
+    
+    print(f"\nSample {i+1}: {sample}")
+    print(f"  Prediction: {result['class_name']}")
+    print(f"  Confidence: {result['confidence']:.2%}")
+    print(f"  Class Probabilities: {result['probabilities']}")
+    print(f"  Average distance to {best_k} neighbors: {result['avg_neighbor_distance']:.4f}")
+    print(f"  Nearest Neighbors:")
+    for j, neighbor in enumerate(result['neighbors']):
+        print(f"    Neighbor {j+1}: Distance={neighbor['distance']:.4f}, "
+              f"Class={neighbor['class_name']}")
+
+print("\n" + "="*70)
+print("END OF KNN ANALYSIS")
+print("="*70)

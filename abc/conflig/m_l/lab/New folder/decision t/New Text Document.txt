@@ -1,0 +1,678 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor, plot_tree, export_text
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.datasets import load_iris, load_diabetes
+from sklearn.preprocessing import StandardScaler
+import warnings
+warnings.filterwarnings('ignore')
+
+print("="*70)
+print("DECISION TREES ANALYSIS")
+print("="*70)
+1. Building a Simple Decision Tree
+python
+print("\n" + "="*70)
+print("1. BUILDING A SIMPLE DECISION TREE - IRIS DATASET")
+print("="*70)
+
+# Load Iris dataset
+iris = load_iris()
+X = iris.data
+y = iris.target
+feature_names = iris.feature_names
+target_names = iris.target_names
+
+print(f"Dataset Shape: {X.shape}")
+print(f"Number of classes: {len(np.unique(y))}")
+print(f"Class names: {target_names}")
+print(f"Feature names: {feature_names}")
+
+# Create and train a simple decision tree
+simple_tree = DecisionTreeClassifier(random_state=42)
+simple_tree.fit(X, y)
+
+# Make predictions
+y_pred = simple_tree.predict(X)
+accuracy = accuracy_score(y, y_pred)
+
+print(f"\nTraining Accuracy: {accuracy:.4f}")
+
+# Visualize the tree structure
+plt.figure(figsize=(20, 10))
+plot_tree(simple_tree, feature_names=feature_names, 
+          class_names=target_names, filled=True, rounded=True)
+plt.title('Decision Tree Structure - Iris Dataset (No Pruning)')
+plt.show()
+
+# Print text representation of the tree
+print("\nText Representation of Decision Tree:")
+print(export_text(simple_tree, feature_names=feature_names, show_weights=True))
+2. Evaluating Decision Tree Performance
+python
+print("\n" + "="*70)
+print("2. DECISION TREE PERFORMANCE EVALUATION")
+print("="*70)
+
+# Split the data
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
+)
+
+print(f"Training set size: {X_train.shape[0]} samples")
+print(f"Test set size: {X_test.shape[0]} samples")
+
+# Train decision tree
+dt_classifier = DecisionTreeClassifier(random_state=42)
+dt_classifier.fit(X_train, y_train)
+
+# Make predictions
+y_train_pred = dt_classifier.predict(X_train)
+y_test_pred = dt_classifier.predict(X_test)
+
+# Calculate metrics
+train_accuracy = accuracy_score(y_train, y_train_pred)
+test_accuracy = accuracy_score(y_test, y_test_pred)
+
+print(f"\nTraining Accuracy: {train_accuracy:.4f}")
+print(f"Testing Accuracy: {test_accuracy:.4f}")
+print(f"Overfitting Gap: {train_accuracy - test_accuracy:.4f}")
+
+# Calculate per-class metrics
+print("\nDetailed Classification Report (Test Set):")
+print("="*50)
+print(classification_report(y_test, y_test_pred, target_names=target_names))
+
+# Calculate macro and weighted averages
+precision_macro = precision_score(y_test, y_test_pred, average='macro')
+recall_macro = recall_score(y_test, y_test_pred, average='macro')
+f1_macro = f1_score(y_test, y_test_pred, average='macro')
+
+print(f"\nMacro Averages:")
+print(f"  Precision: {precision_macro:.4f}")
+print(f"  Recall: {recall_macro:.4f}")
+print(f"  F1-Score: {f1_macro:.4f}")
+
+# Confusion Matrix
+cm = confusion_matrix(y_test, y_test_pred)
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=target_names, yticklabels=target_names)
+plt.title('Confusion Matrix - Decision Tree Classifier')
+plt.ylabel('Actual')
+plt.xlabel('Predicted')
+plt.show()
+
+# Cross-validation scores
+cv_scores = cross_val_score(dt_classifier, X, y, cv=5)
+print(f"\nCross-validation scores: {cv_scores}")
+print(f"Average CV Score: {cv_scores.mean():.4f} (+/- {cv_scores.std()*2:.4f})")
+3. Using Different Splitting Criteria
+python
+print("\n" + "="*70)
+print("3. COMPARING DIFFERENT SPLITTING CRITERIA")
+print("="*70)
+
+# Define different criteria to test
+criteria = ['gini', 'entropy']
+results_criteria = {}
+
+plt.figure(figsize=(15, 10))
+
+for i, criterion in enumerate(criteria, 1):
+    print(f"\n{'-'*50}")
+    print(f"Criterion: {criterion.upper()}")
+    print(f"{'-'*50}")
+    
+    # Train decision tree with specified criterion
+    dt_criterion = DecisionTreeClassifier(criterion=criterion, random_state=42)
+    dt_criterion.fit(X_train, y_train)
+    
+    # Make predictions
+    y_pred_criterion = dt_criterion.predict(X_test)
+    
+    # Calculate metrics
+    accuracy = accuracy_score(y_test, y_pred_criterion)
+    precision = precision_score(y_test, y_pred_criterion, average='weighted')
+    recall = recall_score(y_test, y_pred_criterion, average='weighted')
+    f1 = f1_score(y_test, y_pred_criterion, average='weighted')
+    
+    results_criteria[criterion] = {
+        'accuracy': accuracy,
+        'precision': precision,
+        'recall': recall,
+        'f1': f1
+    }
+    
+    print(f"Accuracy: {accuracy:.4f}")
+    print(f"Precision (weighted): {precision:.4f}")
+    print(f"Recall (weighted): {recall:.4f}")
+    print(f"F1-Score (weighted): {f1:.4f}")
+    print(f"Tree Depth: {dt_criterion.get_depth()}")
+    print(f"Number of Leaves: {dt_criterion.get_n_leaves()}")
+    
+    # Visualize tree
+    plt.subplot(2, 2, i)
+    plot_tree(dt_criterion, feature_names=feature_names, 
+              class_names=target_names, filled=True, 
+              max_depth=3, fontsize=8)
+    plt.title(f'Decision Tree ({criterion} criterion) - Limited to depth 3')
+
+# Comparison bar plot
+plt.subplot(2, 2, 3)
+metrics = ['accuracy', 'precision', 'recall', 'f1']
+x = np.arange(len(metrics))
+width = 0.35
+
+for i, criterion in enumerate(criteria):
+    values = [results_criteria[criterion][m] for m in metrics]
+    plt.bar(x + i*width, values, width, label=criterion.upper())
+
+plt.xlabel('Metrics')
+plt.ylabel('Score')
+plt.title('Performance Comparison: Gini vs Entropy')
+plt.xticks(x + width/2, metrics)
+plt.legend()
+plt.ylim(0, 1)
+
+# Tree complexity comparison
+plt.subplot(2, 2, 4)
+complexity_data = []
+for criterion in criteria:
+    dt_temp = DecisionTreeClassifier(criterion=criterion, random_state=42)
+    dt_temp.fit(X_train, y_train)
+    complexity_data.append([dt_temp.get_depth(), dt_temp.get_n_leaves()])
+
+complexity_df = pd.DataFrame(complexity_data, 
+                           index=criteria, 
+                           columns=['Depth', 'Leaves'])
+complexity_df.plot(kind='bar', ax=plt.gca())
+plt.title('Tree Complexity Comparison')
+plt.xlabel('Criterion')
+plt.ylabel('Count')
+plt.legend()
+plt.xticks(rotation=0)
+
+plt.tight_layout()
+plt.show()
+
+# Print summary table
+print("\nSummary Table - Performance Metrics by Criterion:")
+summary_df = pd.DataFrame(results_criteria).T
+print(summary_df.round(4))
+4. Pruning and Controlling Overfitting
+python
+print("\n" + "="*70)
+print("4. PRUNING AND CONTROLLING OVERFITTING")
+print("="*70)
+
+# Experiment with different hyperparameters
+param_grid = {
+    'max_depth': [None, 3, 5, 7, 10],
+    'min_samples_split': [2, 5, 10, 20],
+    'min_samples_leaf': [1, 2, 5, 10]
+}
+
+# 4.1 Effect of max_depth
+print("\n4.1 Effect of Max Depth:")
+print("-"*50)
+
+depths = [None, 3, 5, 7, 10]
+train_scores_depth = []
+test_scores_depth = []
+tree_depths = []
+tree_leaves = []
+
+for depth in depths:
+    dt_depth = DecisionTreeClassifier(max_depth=depth, random_state=42)
+    dt_depth.fit(X_train, y_train)
+    
+    train_score = dt_depth.score(X_train, y_train)
+    test_score = dt_depth.score(X_test, y_test)
+    
+    train_scores_depth.append(train_score)
+    test_scores_depth.append(test_score)
+    tree_depths.append(dt_depth.get_depth() if depth is None else depth)
+    tree_leaves.append(dt_depth.get_n_leaves())
+    
+    depth_str = 'None' if depth is None else depth
+    print(f"max_depth={depth_str}: Train Acc={train_score:.4f}, Test Acc={test_score:.4f}, "
+          f"Leaves={dt_depth.get_n_leaves()}, Gap={train_score-test_score:.4f}")
+
+# 4.2 Effect of min_samples_split
+print("\n4.2 Effect of Min Samples Split:")
+print("-"*50)
+
+min_samples_splits = [2, 5, 10, 20]
+train_scores_split = []
+test_scores_split = []
+
+for min_split in min_samples_splits:
+    dt_split = DecisionTreeClassifier(min_samples_split=min_split, random_state=42)
+    dt_split.fit(X_train, y_train)
+    
+    train_score = dt_split.score(X_train, y_train)
+    test_score = dt_split.score(X_test, y_test)
+    
+    train_scores_split.append(train_score)
+    test_scores_split.append(test_score)
+    
+    print(f"min_samples_split={min_split}: Train Acc={train_score:.4f}, "
+          f"Test Acc={test_score:.4f}, Leaves={dt_split.get_n_leaves()}, "
+          f"Gap={train_score-test_score:.4f}")
+
+# 4.3 Effect of min_samples_leaf
+print("\n4.3 Effect of Min Samples Leaf:")
+print("-"*50)
+
+min_samples_leafs = [1, 2, 5, 10]
+train_scores_leaf = []
+test_scores_leaf = []
+
+for min_leaf in min_samples_leafs:
+    dt_leaf = DecisionTreeClassifier(min_samples_leaf=min_leaf, random_state=42)
+    dt_leaf.fit(X_train, y_train)
+    
+    train_score = dt_leaf.score(X_train, y_train)
+    test_score = dt_leaf.score(X_test, y_test)
+    
+    train_scores_leaf.append(train_score)
+    test_scores_leaf.append(test_score)
+    
+    print(f"min_samples_leaf={min_leaf}: Train Acc={train_score:.4f}, "
+          f"Test Acc={test_score:.4f}, Leaves={dt_leaf.get_n_leaves()}, "
+          f"Gap={train_score-test_score:.4f}")
+
+# Visualize the effects
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# Max Depth effect
+ax1 = axes[0, 0]
+x_depth = [str(d) if d is not None else 'None' for d in depths]
+ax1.plot(x_depth, train_scores_depth, 'bo-', label='Training Accuracy', linewidth=2)
+ax1.plot(x_depth, test_scores_depth, 'ro-', label='Testing Accuracy', linewidth=2)
+ax1.set_xlabel('Max Depth')
+ax1.set_ylabel('Accuracy')
+ax1.set_title('Effect of Max Depth on Model Performance')
+ax1.legend()
+ax1.grid(True, alpha=0.3)
+
+# Min Samples Split effect
+ax2 = axes[0, 1]
+ax2.plot(min_samples_splits, train_scores_split, 'bo-', label='Training Accuracy', linewidth=2)
+ax2.plot(min_samples_splits, test_scores_split, 'ro-', label='Testing Accuracy', linewidth=2)
+ax2.set_xlabel('Min Samples Split')
+ax2.set_ylabel('Accuracy')
+ax2.set_title('Effect of Min Samples Split on Model Performance')
+ax2.legend()
+ax2.grid(True, alpha=0.3)
+
+# Min Samples Leaf effect
+ax3 = axes[1, 0]
+ax3.plot(min_samples_leafs, train_scores_leaf, 'bo-', label='Training Accuracy', linewidth=2)
+ax3.plot(min_samples_leafs, test_scores_leaf, 'ro-', label='Testing Accuracy', linewidth=2)
+ax3.set_xlabel('Min Samples Leaf')
+ax3.set_ylabel('Accuracy')
+ax3.set_title('Effect of Min Samples Leaf on Model Performance')
+ax3.legend()
+ax3.grid(True, alpha=0.3)
+
+# Tree complexity visualization
+ax4 = axes[1, 1]
+ax4.bar(['No Pruning', 'Pruned'], 
+        [dt_classifier.get_n_leaves(), 
+         DecisionTreeClassifier(max_depth=3, random_state=42).fit(X_train, y_train).get_n_leaves()])
+ax4.set_ylabel('Number of Leaves')
+ax4.set_title('Tree Complexity: No Pruning vs Pruned')
+ax4.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Find best pruned tree
+print("\n" + "-"*50)
+print("FINDING OPTIMAL PRUNING PARAMETERS")
+print("-"*50)
+
+best_params = {'max_depth': None, 'min_samples_split': 2, 'min_samples_leaf': 1}
+best_score = 0
+
+for depth in [None, 3, 4, 5, 6, 7, 8, 9, 10]:
+    for min_split in [2, 5, 10, 15, 20]:
+        for min_leaf in [1, 2, 3, 5, 7, 10]:
+            dt_temp = DecisionTreeClassifier(
+                max_depth=depth,
+                min_samples_split=min_split,
+                min_samples_leaf=min_leaf,
+                random_state=42
+            )
+            dt_temp.fit(X_train, y_train)
+            score = dt_temp.score(X_test, y_test)
+            
+            if score > best_score:
+                best_score = score
+                best_params = {
+                    'max_depth': depth,
+                    'min_samples_split': min_split,
+                    'min_samples_leaf': min_leaf
+                }
+
+print(f"Best Test Accuracy: {best_score:.4f}")
+print(f"Best Parameters: {best_params}")
+
+# Train final pruned tree
+pruned_tree = DecisionTreeClassifier(**best_params, random_state=42)
+pruned_tree.fit(X_train, y_train)
+
+# Compare original vs pruned tree
+print("\nComparison: Original vs Pruned Tree")
+print("-"*50)
+print(f"Original Tree - Depth: {dt_classifier.get_depth()}, Leaves: {dt_classifier.get_n_leaves()}")
+print(f"Pruned Tree - Depth: {pruned_tree.get_depth()}, Leaves: {pruned_tree.get_n_leaves()}")
+print(f"Original Tree Test Accuracy: {dt_classifier.score(X_test, y_test):.4f}")
+print(f"Pruned Tree Test Accuracy: {pruned_tree.score(X_test, y_test):.4f}")
+
+# Visualize pruned tree
+plt.figure(figsize=(15, 8))
+plot_tree(pruned_tree, feature_names=feature_names, 
+          class_names=target_names, filled=True, rounded=True)
+plt.title(f'Pruned Decision Tree (max_depth={best_params["max_depth"]})')
+plt.show()
+5. Predicting New Data
+python
+print("\n" + "="*70)
+print("5. PREDICTING NEW DATA")
+print("="*70)
+
+# 5.1 Binary Classification with Titanic Dataset (for more practical predictions)
+print("\n5.1 Binary Classification - Titanic Survival Prediction")
+print("-"*50)
+
+# Load and prepare Titanic data
+titanic_df = pd.read_csv("/content/Titanic-Dataset.csv")
+
+# Preprocess Titanic data
+titanic_data = titanic_df.copy()
+titanic_data['Age'].fillna(titanic_data['Age'].median(), inplace=True)
+titanic_data['Embarked'].fillna(titanic_data['Embarked'].mode()[0], inplace=True)
+titanic_data['Fare'].fillna(titanic_data['Fare'].median(), inplace=True)
+titanic_data.drop(['Cabin', 'Ticket', 'Name', 'PassengerId'], axis=1, inplace=True)
+titanic_data = pd.get_dummies(titanic_data, columns=['Sex', 'Embarked'], drop_first=True)
+
+# Prepare features and target
+X_titanic = titanic_data.drop('Survived', axis=1)
+y_titanic = titanic_data['Survived']
+feature_names_titanic = X_titanic.columns.tolist()
+
+# Split Titanic data
+X_train_t, X_test_t, y_train_t, y_test_t = train_test_split(
+    X_titanic, y_titanic, test_size=0.2, random_state=42
+)
+
+# Train Titanic decision tree
+titanic_tree = DecisionTreeClassifier(max_depth=5, random_state=42)
+titanic_tree.fit(X_train_t, y_train_t)
+
+print(f"Titanic Decision Tree - Test Accuracy: {titanic_tree.score(X_test_t, y_test_t):.4f}")
+
+# Create new passenger data for prediction
+new_passengers = pd.DataFrame({
+    'Pclass': [1, 3, 2, 1, 3],
+    'Age': [30, 22, 45, 5, 60],
+    'SibSp': [0, 1, 0, 1, 0],
+    'Parch': [0, 0, 0, 2, 0],
+    'Fare': [100, 8.5, 25, 75, 12],
+    'Sex_male': [0, 1, 1, 0, 1],
+    'Embarked_Q': [0, 1, 0, 0, 0],
+    'Embarked_S': [1, 0, 1, 1, 1]
+})
+
+# Make predictions
+titanic_predictions = titanic_tree.predict(new_passengers)
+titanic_probabilities = titanic_tree.predict_proba(new_passengers)
+
+# Display results
+print("\nNew Passenger Predictions:")
+print("-"*60)
+for i in range(len(new_passengers)):
+    survival = "SURVIVE" if titanic_predictions[i] == 1 else "NOT SURVIVE"
+    confidence = titanic_probabilities[i][titanic_predictions[i]]
+    
+    print(f"\nPassenger {i+1}:")
+    print(f"  Pclass: {new_passengers.iloc[i]['Pclass']}, "
+          f"Sex: {'Male' if new_passengers.iloc[i]['Sex_male'] else 'Female'}, "
+          f"Age: {new_passengers.iloc[i]['Age']}")
+    print(f"  Prediction: {survival}")
+    print(f"  Confidence: {confidence:.2%}")
+    print(f"  Survival Probability: {titanic_probabilities[i][1]:.2%}")
+
+# 5.2 Iris Dataset Predictions
+print("\n" + "-"*50)
+print("5.2 Multiclass Classification - Iris Flower Predictions")
+print("-"*50)
+
+# Create new flower samples
+new_flowers = np.array([
+    [5.1, 3.5, 1.4, 0.2],  # Likely Setosa
+    [6.5, 3.0, 5.2, 2.0],  # Likely Virginica
+    [5.9, 3.0, 4.2, 1.5],  # Likely Versicolor
+    [4.9, 3.1, 1.5, 0.1],  # Likely Setosa
+    [6.7, 3.3, 5.7, 2.5],  # Likely Virginica
+    [5.5, 2.5, 4.0, 1.3],  # Borderline case
+])
+
+# Use pruned tree for predictions
+iris_predictions = pruned_tree.predict(new_flowers)
+iris_probabilities = pruned_tree.predict_proba(new_flowers)
+
+# Display results
+print("\nNew Flower Predictions:")
+print("-"*60)
+for i in range(len(new_flowers)):
+    print(f"\nFlower {i+1} Measurements:")
+    print(f"  Sepal Length: {new_flowers[i, 0]:.1f}cm, Sepal Width: {new_flowers[i, 1]:.1f}cm")
+    print(f"  Petal Length: {new_flowers[i, 2]:.1f}cm, Petal Width: {new_flowers[i, 3]:.1f}cm")
+    print(f"  Predicted Species: {target_names[iris_predictions[i]]}")
+    print(f"  Prediction Probabilities:")
+    for j, species in enumerate(target_names):
+        print(f"    {species}: {iris_probabilities[i, j]:.4f}")
+
+# 5.3 Decision Path Analysis
+print("\n" + "-"*50)
+print("5.3 Decision Path Analysis")
+print("-"*50)
+
+# Show decision path for a specific sample
+sample_idx = 2  # Choose a sample to analyze
+sample = new_flowers[sample_idx].reshape(1, -1)
+decision_path = pruned_tree.decision_path(sample)
+leaf_id = pruned_tree.apply(sample)[0]
+
+print(f"\nAnalyzing Flower {sample_idx + 1}:")
+print(f"Measurements: {sample.flatten()}")
+
+# Get the nodes in the decision path
+nodes = decision_path.indices
+
+print(f"\nDecision Path (Nodes visited): {nodes}")
+print(f"Leaf Node: {leaf_id}")
+
+# Get feature importance for this prediction
+feature_importance_sample = pruned_tree.feature_importances_
+print(f"\nFeature Importances (global):")
+for name, imp in zip(feature_names, feature_importance_sample):
+    print(f"  {name}: {imp:.4f}")
+
+# 5.4 Batch Predictions and Analysis
+print("\n" + "-"*50)
+print("5.4 Batch Predictions and Analysis")
+print("-"*50)
+
+# Create a larger set of test samples
+np.random.seed(42)
+n_samples = 20
+random_samples = np.random.randn(n_samples, 4) * 0.5 + [5.8, 3.0, 3.8, 1.2]  # Around mean values
+
+# Make predictions
+batch_predictions = pruned_tree.predict(random_samples)
+batch_probabilities = pruned_tree.predict_proba(random_samples)
+
+# Analyze prediction distribution
+unique, counts = np.unique(batch_predictions, return_counts=True)
+print("\nPrediction Distribution:")
+for species, count in zip(target_names[unique], counts):
+    print(f"  {species}: {count} samples ({count/n_samples*100:.1f}%)")
+
+# Confidence analysis
+max_confidences = np.max(batch_probabilities, axis=1)
+print(f"\nConfidence Statistics:")
+print(f"  Average Confidence: {np.mean(max_confidences):.4f}")
+print(f"  Min Confidence: {np.min(max_confidences):.4f}")
+print(f"  Max Confidence: {np.max(max_confidences):.4f}")
+
+# Visualize predictions
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+# Prediction distribution
+ax1 = axes[0]
+ax1.bar(target_names, counts)
+ax1.set_title('Prediction Distribution')
+ax1.set_ylabel('Count')
+ax1.grid(True, alpha=0.3)
+
+# Confidence distribution
+ax2 = axes[1]
+ax2.hist(max_confidences, bins=10, edgecolor='black', alpha=0.7)
+ax2.set_title('Confidence Distribution')
+ax2.set_xlabel('Confidence')
+ax2.set_ylabel('Frequency')
+ax2.grid(True, alpha=0.3)
+
+# Feature importance
+ax3 = axes[2]
+ax3.bar(feature_names, pruned_tree.feature_importances_)
+ax3.set_title('Feature Importance')
+ax3.set_ylabel('Importance')
+ax3.tick_params(axis='x', rotation=45)
+ax3.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# 5.5 Interactive Prediction Function
+print("\n" + "-"*50)
+print("5.5 Interactive Prediction Function")
+print("-"*50)
+
+def predict_iris(sepal_length, sepal_width, petal_length, petal_width):
+    """
+    Predict iris species based on measurements
+    
+    Parameters:
+    sepal_length, sepal_width, petal_length, petal_width: float measurements in cm
+    """
+    # Create feature array
+    features = np.array([[sepal_length, sepal_width, petal_length, petal_width]])
+    
+    # Make prediction
+    prediction = pruned_tree.predict(features)[0]
+    probabilities = pruned_tree.predict_proba(features)[0]
+    
+    # Get decision path
+    leaf_id = pruned_tree.apply(features)[0]
+    
+    return {
+        'species': target_names[prediction],
+        'probabilities': dict(zip(target_names, probabilities)),
+        'confidence': probabilities[prediction],
+        'leaf_node': leaf_id
+    }
+
+# Test the function with different inputs
+test_cases = [
+    (5.1, 3.5, 1.4, 0.2),   # Likely Setosa
+    (6.5, 3.0, 5.2, 2.0),   # Likely Virginica
+    (5.9, 3.0, 4.2, 1.5),   # Likely Versicolor
+    (6.0, 2.9, 4.5, 1.5),   # Borderline case
+]
+
+print("\nTesting Interactive Prediction Function:")
+for i, (sl, sw, pl, pw) in enumerate(test_cases):
+    result = predict_iris(sl, sw, pl, pw)
+    print(f"\nTest Case {i+1}: ({sl}, {sw}, {pl}, {pw})")
+    print(f"  Predicted: {result['species']}")
+    print(f"  Confidence: {result['confidence']:.2%}")
+    print(f"  Probabilities: {result['probabilities']}")
+    print(f"  Leaf Node: {result['leaf_node']}")
+Summary and Conclusions
+python
+print("\n" + "="*70)
+print("DECISION TREES - SUMMARY AND CONCLUSIONS")
+print("="*70)
+
+print("""
+Key Findings:
+-------------
+1. Decision Tree Structure:
+   - Trees provide intuitive, interpretable decision rules
+   - Can be visualized and understood by non-experts
+   - Feature importance reveals which variables matter most
+
+2. Performance Evaluation:
+   - Training accuracy often high, but may indicate overfitting
+   - Test accuracy provides realistic performance estimate
+   - Cross-validation gives robust performance assessment
+
+3. Splitting Criteria Comparison:
+   - Gini and Entropy often produce similar results
+   - Entropy may create slightly more balanced trees
+   - Choice of criterion has minor impact on final performance
+
+4. Pruning and Overfitting Control:
+   - Unpruned trees tend to overfit training data
+   - Parameters like max_depth, min_samples_split control complexity
+   - Proper pruning improves generalization
+   - Trade-off between bias and variance
+
+5. Prediction Capabilities:
+   - Trees can handle both binary and multiclass classification
+   - Provide probability estimates for predictions
+   - Decision path reveals reasoning behind each prediction
+
+Advantages of Decision Trees:
+✓ Easy to understand and interpret
+✓ Require little data preprocessing
+✓ Handle both numerical and categorical data
+✓ Non-parametric (no assumptions about data distribution)
+
+Limitations:
+✗ Prone to overfitting
+✗ Can be unstable (small changes in data → different tree)
+✗ May create biased trees if some classes dominate
+✗ Limited expressiveness for complex relationships
+""")
+
+# Final comparison
+print("\nFinal Model Comparison:")
+print("-"*50)
+
+print(f"Simple Tree (Iris):")
+print(f"  Depth: {simple_tree.get_depth()}, Leaves: {simple_tree.get_n_leaves()}")
+print(f"  Test Accuracy: {dt_classifier.score(X_test, y_test):.4f}")
+
+print(f"\nPruned Tree (Iris):")
+print(f"  Depth: {pruned_tree.get_depth()}, Leaves: {pruned_tree.get_n_leaves()}")
+print(f"  Test Accuracy: {pruned_tree.score(X_test, y_test):.4f}")
+print(f"  Improvement: {(pruned_tree.score(X_test, y_test) - dt_classifier.score(X_test, y_test))*100:.2f}%")
+
+print(f"\nTitanic Tree:")
+print(f"  Depth: {titanic_tree.get_depth()}, Leaves: {titanic_tree.get_n_leaves()}")
+print(f"  Test Accuracy: {titanic_tree.score(X_test_t, y_test_t):.4f}")
+
+print("\n" + "="*70)
+print("END OF DECISION TREES ANALYSIS")
+print("="*70)
